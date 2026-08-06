@@ -19,9 +19,10 @@ import {
   SOURCE_LABELS,
   WORKPLACE_LABELS,
 } from "@/types/job";
+import type { Job } from "@/types/job";
 
 export const Route = createFileRoute("/vagas/$jobId")({
-  loader: async ({ params }) => {
+  loader: async ({ params }): Promise<{ job: Job }> => {
     const job = await jobsRepository.getById(params.jobId);
     if (!job) throw notFound();
     return { job };
