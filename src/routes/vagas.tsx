@@ -20,7 +20,14 @@ import {
 } from "@/components/ui/select";
 import { jobsRepository } from "@/services/jobsRepository";
 import { jobsSeed } from "@/data/jobs";
-import type { JobQuery } from "@/types/job";
+import type {
+  ContractType,
+  JobQuery,
+  JobSource,
+  Seniority,
+  SortOption,
+  WorkplaceType,
+} from "@/types/job";
 
 interface VagasSearch {
   q: string;
@@ -38,14 +45,14 @@ const str = (value: unknown, fallback: string) =>
 
 export const Route = createFileRoute("/vagas")({
   validateSearch: (search: Record<string, unknown>): VagasSearch => ({
-    q: str(search.q, ""),
-    modalidade: str(search.modalidade, "todos"),
-    nivel: str(search.nivel, "todos"),
-    estado: str(search.estado, "todos"),
-    area: str(search.area, "todos"),
-    contrato: str(search.contrato, "todos"),
-    origem: str(search.origem, "todos"),
-    ordem: str(search.ordem, "recentes"),
+    q: str(search["q"], ""),
+    modalidade: str(search["modalidade"], "todos"),
+    nivel: str(search["nivel"], "todos"),
+    estado: str(search["estado"], "todos"),
+    area: str(search["area"], "todos"),
+    contrato: str(search["contrato"], "todos"),
+    origem: str(search["origem"], "todos"),
+    ordem: str(search["ordem"], "recentes"),
   }),
   head: () => ({
     meta: [
@@ -79,13 +86,13 @@ function VagasPage() {
 
   const query: JobQuery = {
     q: search.q,
-    workplaceType: search.modalidade as JobQuery["workplaceType"],
-    seniority: search.nivel as JobQuery["seniority"],
+    workplaceType: search.modalidade as WorkplaceType | "todos",
+    seniority: search.nivel as Seniority | "todos",
     state: search.estado,
     category: search.area,
-    contractType: search.contrato as JobQuery["contractType"],
-    source: search.origem as JobQuery["source"],
-    sort: search.ordem as JobQuery["sort"],
+    contractType: search.contrato as ContractType | "todos",
+    source: search.origem as JobSource | "todos",
+    sort: search.ordem as SortOption,
   };
 
   const { data, isPending, isError, refetch } = useQuery({
@@ -115,7 +122,7 @@ function VagasPage() {
     Object.values(filters).some((v) => v !== "todos") || search.q.length > 0;
 
   const updateFilter = (key: keyof FilterState, value: string) => {
-    navigate({ to: ".", search: (prev) => ({ ...prev, [filterKeyMap[key]]: value }) });
+    navigate({ to: ".", search: (prev: VagasSearch) => ({ ...prev, [filterKeyMap[key]]: value }) });
   };
 
   const clearAll = () => {
@@ -136,7 +143,7 @@ function VagasPage() {
 
   const submitSearch = (event: React.FormEvent) => {
     event.preventDefault();
-    navigate({ to: ".", search: (prev) => ({ ...prev, q: term.trim() }) });
+    navigate({ to: ".", search: (prev: VagasSearch) => ({ ...prev, q: term.trim() }) });
   };
 
   return (
@@ -199,7 +206,7 @@ function VagasPage() {
                 <Select
                   value={search.ordem}
                   onValueChange={(value) =>
-                    navigate({ to: ".", search: (prev) => ({ ...prev, ordem: value }) })
+                    navigate({ to: ".", search: (prev: VagasSearch) => ({ ...prev, ordem: value }) })
                   }
                 >
                   <SelectTrigger id="ordenacao" className="h-9 w-[180px] bg-surface">
