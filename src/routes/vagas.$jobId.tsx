@@ -92,7 +92,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 function JobDetailPage() {
-  const { job } = Route.useLoaderData();
+  const { job } = Route.useLoaderData() as { job: Job };
 
   return (
     <PageShell>
