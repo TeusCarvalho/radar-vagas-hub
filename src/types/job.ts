@@ -1,10 +1,16 @@
 export type JobSource = "gupy" | "inhire";
 
-export type WorkplaceType = "remoto" | "hibrido" | "presencial";
+export type WorkplaceType = "remoto" | "hibrido" | "presencial" | "nao_informado";
 
-export type ContractType = "clt" | "pj" | "estagio" | "temporario";
+export type ContractType = "clt" | "pj" | "estagio" | "temporario" | "nao_informado";
 
-export type Seniority = "estagio" | "junior" | "pleno" | "senior" | "especialista";
+export type Seniority =
+  | "estagio"
+  | "junior"
+  | "pleno"
+  | "senior"
+  | "especialista"
+  | "nao_informado";
 
 export interface Job {
   id: string;
@@ -51,6 +57,7 @@ export const WORKPLACE_LABELS: Record<WorkplaceType, string> = {
   remoto: "Remoto",
   hibrido: "Híbrido",
   presencial: "Presencial",
+  nao_informado: "Não informado",
 };
 
 export const CONTRACT_LABELS: Record<ContractType, string> = {
@@ -58,6 +65,7 @@ export const CONTRACT_LABELS: Record<ContractType, string> = {
   pj: "PJ",
   estagio: "Estágio",
   temporario: "Temporário",
+  nao_informado: "Não informado",
 };
 
 export const SENIORITY_LABELS: Record<Seniority, string> = {
@@ -66,6 +74,7 @@ export const SENIORITY_LABELS: Record<Seniority, string> = {
   pleno: "Pleno",
   senior: "Sênior",
   especialista: "Especialista",
+  nao_informado: "Não informado",
 };
 
 export const SOURCE_LABELS: Record<JobSource, string> = {
