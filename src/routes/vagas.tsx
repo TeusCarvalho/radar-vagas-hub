@@ -18,8 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 import { jobsRepository } from "@/services/jobsRepository";
-import { jobsSeed } from "@/data/jobs";
+
 import type {
   ContractType,
   JobQuery,
@@ -54,30 +55,35 @@ export const Route = createFileRoute("/vagas")({
     origem: str(search["origem"], "todos"),
     ordem: str(search["ordem"], "recentes"),
   }),
+
   head: () => ({
     meta: [
-      { title: "Buscar vagas de emprego | Radar Vagas" },
+      {
+        title: "Buscar vagas de emprego | Radar Vagas",
+      },
       {
         name: "description",
         content:
           "Pesquise vagas por cargo, empresa ou palavra-chave e filtre por modalidade, senioridade, estado, área, contrato e plataforma de origem.",
       },
-      { property: "og:title", content: "Buscar vagas de emprego | Radar Vagas" },
+      {
+        property: "og:title",
+        content: "Buscar vagas de emprego | Radar Vagas",
+      },
       {
         property: "og:description",
         content: "Filtros de modalidade, senioridade, estado, área e plataforma em um só lugar.",
       },
     ],
   }),
+
   component: VagasPage,
 });
-
-const states = [...new Set(jobsSeed.map((j) => j.state))].sort();
-const categories = [...new Set(jobsSeed.map((j) => j.category))].sort();
 
 function VagasPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
+
   const [term, setTerm] = useState(search.q);
 
   useEffect(() => {
@@ -95,10 +101,26 @@ function VagasPage() {
     sort: search.ordem as SortOption,
   };
 
+  /*
+   * Busca as vagas no repositório.
+   * Atualmente o jobsRepository está conectado ao Supabase.
+   */
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ["jobs", search],
     queryFn: () => jobsRepository.search(query),
   });
+
+  /*
+   * Estados e categorias também vêm do Supabase.
+   * Isso elimina a dependência do antigo jobsSeed.
+   */
+  const { data: facets } = useQuery({
+    queryKey: ["jobs-facets"],
+    queryFn: () => jobsRepository.listFacets(),
+  });
+
+  const states = facets?.states ?? [];
+  const categories = facets?.categories ?? [];
 
   const filters: FilterState = {
     workplaceType: search.modalidade,
@@ -119,10 +141,16 @@ function VagasPage() {
   };
 
   const hasActiveFilters =
-    Object.values(filters).some((v) => v !== "todos") || search.q.length > 0;
+    Object.values(filters).some((value) => value !== "todos") || search.q.length > 0;
 
   const updateFilter = (key: keyof FilterState, value: string) => {
-    navigate({ to: ".", search: (prev: VagasSearch) => ({ ...prev, [filterKeyMap[key]]: value }) });
+    navigate({
+      to: ".",
+      search: (prev: VagasSearch) => ({
+        ...prev,
+        [filterKeyMap[key]]: value,
+      }),
+    });
   };
 
   const clearAll = () => {
@@ -143,37 +171,53 @@ function VagasPage() {
 
   const submitSearch = (event: React.FormEvent) => {
     event.preventDefault();
-    navigate({ to: ".", search: (prev: VagasSearch) => ({ ...prev, q: term.trim() }) });
+
+    navigate({
+      to: ".",
+      search: (prev: VagasSearch) => ({
+        ...prev,
+        q: term.trim(),
+      }),
+    });
   };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
+
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
         <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
           Vagas abertas
         </h1>
+
         <p className="mt-1 text-sm text-muted-foreground">
           Pesquise por cargo, palavra-chave ou empresa e refine com os filtros.
         </p>
 
-        <form onSubmit={submitSearch} className="mt-6 flex flex-col gap-3 sm:flex-row" role="search">
+        <form
+          onSubmit={submitSearch}
+          className="mt-6 flex flex-col gap-3 sm:flex-row"
+          role="search"
+        >
           <div className="relative flex-1">
             <Label htmlFor="busca-vagas" className="sr-only">
               Buscar vagas
             </Label>
+
             <Search
               className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
               aria-hidden="true"
             />
+
             <Input
               id="busca-vagas"
               value={term}
-              onChange={(e) => setTerm(e.target.value)}
+              onChange={(event) => setTerm(event.target.value)}
               placeholder="Cargo, palavra-chave ou empresa"
               className="h-12 bg-surface pl-9 text-base"
             />
           </div>
+
           <Button type="submit" size="lg" className="h-12">
             Buscar vagas
           </Button>
@@ -196,24 +240,37 @@ function VagasPage() {
               <p className="text-sm font-semibold text-foreground" aria-live="polite">
                 {isPending
                   ? "Carregando vagas…"
-                  : `${data?.total ?? 0} ${data?.total === 1 ? "vaga encontrada" : "vagas encontradas"}`}
+                  : `${data?.total ?? 0} ${
+                      data?.total === 1 ? "vaga encontrada" : "vagas encontradas"
+                    }`}
               </p>
+
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="size-4 text-muted-foreground" aria-hidden="true" />
+
                 <Label htmlFor="ordenacao" className="sr-only">
                   Ordenar por
                 </Label>
+
                 <Select
                   value={search.ordem}
                   onValueChange={(value) =>
-                    navigate({ to: ".", search: (prev: VagasSearch) => ({ ...prev, ordem: value }) })
+                    navigate({
+                      to: ".",
+                      search: (prev: VagasSearch) => ({
+                        ...prev,
+                        ordem: value,
+                      }),
+                    })
                   }
                 >
                   <SelectTrigger id="ordenacao" className="h-9 w-[180px] bg-surface">
                     <SelectValue />
                   </SelectTrigger>
+
                   <SelectContent>
                     <SelectItem value="recentes">Mais recentes</SelectItem>
+
                     <SelectItem value="relevancia">Relevância</SelectItem>
                   </SelectContent>
                 </Select>
@@ -222,8 +279,8 @@ function VagasPage() {
 
             {isPending && (
               <div className="mt-4 space-y-4">
-                {[0, 1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-48 w-full rounded-2xl" />
+                {[0, 1, 2, 3].map((index) => (
+                  <Skeleton key={index} className="h-48 w-full rounded-2xl" />
                 ))}
               </div>
             )}
@@ -234,12 +291,15 @@ function VagasPage() {
                 className="mt-4 rounded-2xl border border-destructive/30 bg-card p-8 text-center shadow-card"
               >
                 <AlertCircle className="mx-auto size-8 text-destructive" aria-hidden="true" />
+
                 <h2 className="mt-3 text-base font-bold text-foreground">
                   Não foi possível carregar as vagas
                 </h2>
+
                 <p className="mt-1 text-sm text-muted-foreground">
                   Ocorreu um erro na busca. Tente novamente em instantes.
                 </p>
+
                 <Button className="mt-4" onClick={() => refetch()}>
                   Tentar novamente
                 </Button>
@@ -249,10 +309,15 @@ function VagasPage() {
             {!isPending && !isError && data && data.jobs.length === 0 && (
               <div className="mt-4 rounded-2xl border border-border bg-card p-10 text-center shadow-card">
                 <SearchX className="mx-auto size-8 text-muted-foreground" aria-hidden="true" />
-                <h2 className="mt-3 text-base font-bold text-foreground">Nenhuma vaga encontrada</h2>
+
+                <h2 className="mt-3 text-base font-bold text-foreground">
+                  Nenhuma vaga encontrada
+                </h2>
+
                 <p className="mt-1 text-sm text-muted-foreground">
                   Tente outras palavras-chave ou remova alguns filtros.
                 </p>
+
                 <Button variant="outline" className="mt-4" onClick={clearAll}>
                   Limpar filtros
                 </Button>
@@ -276,6 +341,7 @@ function VagasPage() {
           </Link>
         </p>
       </main>
+
       <SiteFooter />
     </div>
   );
