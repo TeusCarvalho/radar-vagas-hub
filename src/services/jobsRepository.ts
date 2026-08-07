@@ -89,25 +89,33 @@ const normalize = (value: string | null | undefined) =>
     .trim();
 
 function mapSource(value: string): JobSource {
-  return normalize(value) === "inhire" ? "inhire" : "gupy";
+  const source = normalize(value);
+
+  if (source === "gupy") return "gupy";
+  if (source === "inhire") return "inhire";
+  if (source === "greenhouse") return "greenhouse";
+  if (source === "lever") return "lever";
+  if (source === "ashby") return "ashby";
+
+  return "gupy";
 }
 
 function mapWorkplace(value: string | null): WorkplaceType {
   const normalized = normalize(value);
 
   if (normalized === "remote" || normalized.includes("remot")) {
-    return "remoto";
+    return "remote";
   }
 
   if (normalized === "hybrid" || normalized.includes("hibr")) {
-    return "hibrido";
+    return "hybrid";
   }
 
   if (normalized === "onsite" || normalized === "on-site" || normalized.includes("presenc")) {
-    return "presencial";
+    return "onsite";
   }
 
-  return "nao_informado";
+  return "unknown";
 }
 
 function mapContract(value: string | null): ContractType {
@@ -166,7 +174,7 @@ function rowToJob(row: JobRow): Job {
   const locationText =
     row.location_text ||
     [row.city, row.state].filter(Boolean).join(", ") ||
-    (workplaceType === "remoto" ? "Remoto - Brasil" : "Local não informado");
+    (workplaceType === "remote" ? "Remoto - Brasil" : "Local não informado");
 
   const description =
     row.description?.trim() ||
