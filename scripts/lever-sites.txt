@@ -1,0 +1,20 @@
+# Lever sites - Radar Vagas
+# Formato recomendado: slug=Nome da Empresa
+# Para forçar região EU: eu|slug=Nome da Empresa
+# URLs completas de jobs.lever.co também funcionam.
+
+1password=1Password
+aircall=Aircall
+atlassian=Atlassian
+caseware=Caseware
+coupa=Coupa
+dnb=Dun & Bradstreet
+docsumo=Docsumo
+eventbrite=Eventbrite
+highspot=Highspot
+shopify=Shopify
+spotify=Spotify
+studypoint=StudyPoint
+teamsnap=TeamSnap
+unlimit=Unlimit
+whereby=Whereby

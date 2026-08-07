@@ -1,0 +1,13 @@
+# Ashby boards - Radar Vagas
+# Formato: board=Nome da Empresa
+# Pode colar também URL completa jobs.ashbyhq.com/board
+
+ashby=Ashby
+quorum=Quorum
+Agent=Agent
+dandy=Dandy
+depot=Depot
+fluidstack=Fluidstack
+substrate=Substrate
+omniscient=Omniscient
+trm-labs=TRM Labs

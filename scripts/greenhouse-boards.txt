@@ -1,0 +1,35 @@
+# Greenhouse board tokens - Radar Vagas
+# Um por linha. URLs completas também serão aceitas pelo coletor.
+# O coletor valida cada board; 404 é ignorado.
+
+anthropic
+vercel
+mercury
+coinbase
+fireblocks
+kalshi
+layerzerolabs
+mesh
+stackblitz
+webflow
+figma
+scaleai
+helsing
+blackforestlabs
+imbue
+parloa
+labelbox
+contentful
+raisin
+getyourguide
+monzo
+typeform
+wolt
+nubank
+gitlab
+carta
+twilio
+circleci
+patreon
+axios
+remotecom

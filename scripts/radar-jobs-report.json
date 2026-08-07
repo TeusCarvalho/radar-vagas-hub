@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-08-07T18:11:49.110Z",
+  "inputs": {
+    "gupy": 10186,
+    "inhire": 1672,
+    "greenhouse": 432,
+    "lever": 75,
+    "ashby": 114
+  },
+  "total_raw": 12479,
+  "duplicate_same_source": 0,
+  "duplicate_cross_source": 0,
+  "invalid_after_merge": 0,
+  "total_public": 12479,
+  "missing_files": [],
+  "duplicate_groups": [],
+  "invalid_jobs": []
+}

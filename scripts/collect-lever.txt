@@ -1,0 +1,20 @@
+# Lever sites - Radar Vagas
+# Formato: slug=Nome da Empresa
+# Pode usar URL completa jobs.lever.co/slug
+# Para forçar o shard europeu: eu|slug=Nome da Empresa
+
+spotify=Spotify
+caseware=Caseware
+highspot=Highspot
+1password=1Password
+aircall=Aircall
+dnb=Dun & Bradstreet
+teamsnap=TeamSnap
+studypoint=StudyPoint
+docsumo=Docsumo
+eventbrite=Eventbrite
+atlassian=Atlassian
+shopify=Shopify
+whereby=Whereby
+coupa=Coupa
+unlimit=Unlimit
