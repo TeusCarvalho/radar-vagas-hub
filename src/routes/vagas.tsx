@@ -1,7 +1,14 @@
 import { createFileRoute, Link, useNavigate, type SearchSchemaInput } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { Search, SlidersHorizontal, AlertCircle, SearchX } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  SearchX,
+  SlidersHorizontal,
+} from "lucide-react";
 
 import { JobCard } from "@/components/job-card";
 import { JobFilters, type FilterState } from "@/components/job-filters";
@@ -31,11 +38,8 @@ import type {
   WorkplaceType,
 } from "@/types/job";
 
-/**
- * Valores já validados e disponíveis dentro da página.
- *
- * Aqui todos existem porque validateSearch aplica os valores padrão.
- */
+const JOBS_PER_PAGE = 20;
+
 interface VagasSearch {
   q: string;
   modalidade: string;
@@ -45,47 +49,35 @@ interface VagasSearch {
   contrato: string;
   origem: string;
   ordem: string;
+  pagina: number;
 }
 
-/**
- * Valores aceitos ao navegar para /vagas.
- *
- * Todos são opcionais.
- * Assim, podemos fazer:
- *
- * <Link to="/vagas" />
- *
- * ou:
- *
- * navigate({
- *   to: "/vagas",
- *   search: { q: "Analista de Dados" }
- * })
- *
- * sem precisar informar todos os filtros.
- */
 type VagasSearchInput = Partial<VagasSearch>;
 
 const str = (value: unknown, fallback: string) =>
   typeof value === "string" && value.length > 0 ? value : fallback;
 
+const positiveInt = (value: unknown, fallback = 1) => {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return fallback;
+  }
+
+  return parsed;
+};
+
 export const Route = createFileRoute("/vagas")({
   validateSearch: (search: VagasSearchInput & SearchSchemaInput): VagasSearch => ({
     q: str(search.q, ""),
-
     modalidade: str(search.modalidade, "todos"),
-
     nivel: str(search.nivel, "todos"),
-
     estado: str(search.estado, "todos"),
-
     area: str(search.area, "todos"),
-
     contrato: str(search.contrato, "todos"),
-
     origem: str(search.origem, "todos"),
-
     ordem: str(search.ordem, "recentes"),
+    pagina: positiveInt(search.pagina, 1),
   }),
 
   head: () => ({
@@ -143,58 +135,59 @@ function VagasPage() {
     sort: search.ordem as SortOption,
   };
 
-  /**
-   * Busca das vagas no Supabase.
-   */
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ["jobs", search],
-
     queryFn: () => jobsRepository.search(query),
   });
 
-  /**
-   * Estados e categorias também vêm do Supabase.
-   */
   const { data: facets } = useQuery({
     queryKey: ["jobs-facets"],
-
     queryFn: () => jobsRepository.listFacets(),
   });
 
   const states = facets?.states ?? [];
-
   const categories = facets?.categories ?? [];
 
   const filters: FilterState = {
     workplaceType: search.modalidade,
-
     seniority: search.nivel,
-
     state: search.estado,
-
     category: search.area,
-
     contractType: search.contrato,
-
     source: search.origem,
   };
 
   const filterKeyMap: Record<keyof FilterState, keyof VagasSearch> = {
     workplaceType: "modalidade",
-
     seniority: "nivel",
-
     state: "estado",
-
     category: "area",
-
     contractType: "contrato",
-
     source: "origem",
   };
 
   const hasActiveFilters =
     Object.values(filters).some((value) => value !== "todos") || search.q.length > 0;
+
+  /*
+   * Paginação
+   */
+  const allJobs = data?.jobs ?? [];
+  const totalJobs = data?.total ?? allJobs.length;
+
+  const totalPages = Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE));
+
+  const currentPage = Math.min(Math.max(search.pagina, 1), totalPages);
+
+  const startIndex = (currentPage - 1) * JOBS_PER_PAGE;
+
+  const endIndex = startIndex + JOBS_PER_PAGE;
+
+  const paginatedJobs = allJobs.slice(startIndex, endIndex);
+
+  const firstVisible = totalJobs === 0 ? 0 : startIndex + 1;
+
+  const lastVisible = Math.min(endIndex, totalJobs);
 
   const updateFilter = (key: keyof FilterState, value: string) => {
     navigate({
@@ -202,8 +195,10 @@ function VagasPage() {
 
       search: (prev) => ({
         ...prev,
-
         [filterKeyMap[key]]: value,
+
+        // Mudou filtro -> volta para página 1
+        pagina: 1,
       }),
     });
   };
@@ -221,11 +216,12 @@ function VagasPage() {
         contrato: "todos",
         origem: "todos",
         ordem: "recentes",
+        pagina: 1,
       },
     });
   };
 
-  const submitSearch = (event: React.FormEvent) => {
+  const submitSearch = (event: FormEvent) => {
     event.preventDefault();
 
     navigate({
@@ -233,10 +229,32 @@ function VagasPage() {
 
       search: (prev) => ({
         ...prev,
-
         q: term.trim(),
+
+        // Nova busca -> página 1
+        pagina: 1,
       }),
     });
+  };
+
+  const goToPage = (page: number) => {
+    const nextPage = Math.min(Math.max(page, 1), totalPages);
+
+    navigate({
+      to: ".",
+
+      search: (prev) => ({
+        ...prev,
+        pagina: nextPage,
+      }),
+    });
+
+    if (typeof window !== "undefined") {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    }
   };
 
   return (
@@ -295,13 +313,19 @@ function VagasPage() {
 
           <div>
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-card">
-              <p className="text-sm font-semibold text-foreground" aria-live="polite">
-                {isPending
-                  ? "Carregando vagas…"
-                  : `${data?.total ?? 0} ${
-                      data?.total === 1 ? "vaga encontrada" : "vagas encontradas"
-                    }`}
-              </p>
+              <div>
+                <p className="text-sm font-semibold text-foreground" aria-live="polite">
+                  {isPending
+                    ? "Carregando vagas…"
+                    : `${totalJobs} ${totalJobs === 1 ? "vaga encontrada" : "vagas encontradas"}`}
+                </p>
+
+                {!isPending && !isError && totalJobs > 0 && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Mostrando {firstVisible}–{lastVisible} de {totalJobs}
+                  </p>
+                )}
+              </div>
 
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="size-4 text-muted-foreground" aria-hidden="true" />
@@ -318,8 +342,10 @@ function VagasPage() {
 
                       search: (prev) => ({
                         ...prev,
-
                         ordem: value,
+
+                        // Mudou ordenação -> página 1
+                        pagina: 1,
                       }),
                     })
                   }
@@ -366,7 +392,7 @@ function VagasPage() {
               </div>
             )}
 
-            {!isPending && !isError && data && data.jobs.length === 0 && (
+            {!isPending && !isError && data && totalJobs === 0 && (
               <div className="mt-4 rounded-2xl border border-border bg-card p-10 text-center shadow-card">
                 <SearchX className="mx-auto size-8 text-muted-foreground" aria-hidden="true" />
 
@@ -384,12 +410,51 @@ function VagasPage() {
               </div>
             )}
 
-            {!isPending && !isError && data && data.jobs.length > 0 && (
-              <div className="mt-4 space-y-4">
-                {data.jobs.map((job) => (
-                  <JobCard key={job.id} job={job} />
-                ))}
-              </div>
+            {!isPending && !isError && data && totalJobs > 0 && (
+              <>
+                <div className="mt-4 space-y-4">
+                  {paginatedJobs.map((job) => (
+                    <JobCard key={job.id} job={job} />
+                  ))}
+                </div>
+
+                {totalPages > 1 && (
+                  <nav
+                    className="mt-8 flex flex-col items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 sm:flex-row"
+                    aria-label="Paginação das vagas"
+                  >
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={currentPage === 1}
+                      onClick={() => goToPage(currentPage - 1)}
+                    >
+                      <ChevronLeft className="size-4" aria-hidden="true" />
+                      Anterior
+                    </Button>
+
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-foreground">
+                        Página {currentPage} de {totalPages}
+                      </p>
+
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {firstVisible}–{lastVisible} de {totalJobs} vagas
+                      </p>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={currentPage === totalPages}
+                      onClick={() => goToPage(currentPage + 1)}
+                    >
+                      Próxima
+                      <ChevronRight className="size-4" aria-hidden="true" />
+                    </Button>
+                  </nav>
+                )}
+              </>
             )}
           </div>
         </div>

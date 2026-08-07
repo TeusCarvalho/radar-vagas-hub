@@ -120,7 +120,7 @@ export function JobCard({ job }: { job: Job }) {
             <div className="mt-1 text-xs">
               <p className="inline-flex items-center gap-1 font-medium text-muted-foreground">
                 <CalendarDays className="size-3.5" aria-hidden="true" />
-                Até {deadline.date}
+                Inscrições até {deadline.date}
               </p>
 
               {deadline.message && (
