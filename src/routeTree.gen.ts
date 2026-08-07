@@ -11,7 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as VagasRouteImport } from './routes/vagas'
-import { Route as VagasJobIdRouteImport } from './routes/vagas.$jobId'
+import { Route as VagasJobIdRouteImport } from './routes/vagas_.$jobId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -24,38 +24,39 @@ const VagasRoute = VagasRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const VagasJobIdRoute = VagasJobIdRouteImport.update({
-  id: '/$jobId',
-  path: '/$jobId',
-  getParentRoute: () => VagasRoute,
+  id: '/vagas_/$jobId',
+  path: '/vagas/$jobId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/vagas': typeof VagasRouteWithChildren
+  '/vagas': typeof VagasRoute
   '/vagas/$jobId': typeof VagasJobIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/vagas': typeof VagasRouteWithChildren
+  '/vagas': typeof VagasRoute
   '/vagas/$jobId': typeof VagasJobIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/vagas': typeof VagasRouteWithChildren
-  '/vagas/$jobId': typeof VagasJobIdRoute
+  '/vagas': typeof VagasRoute
+  '/vagas_/$jobId': typeof VagasJobIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths: '/' | '/vagas' | '/vagas/$jobId'
   fileRoutesByTo: FileRoutesByTo
   to: '/' | '/vagas' | '/vagas/$jobId'
-  id: '__root__' | '/' | '/vagas' | '/vagas/$jobId'
+  id: '__root__' | '/' | '/vagas' | '/vagas_/$jobId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  VagasRoute: typeof VagasRouteWithChildren
+  VagasRoute: typeof VagasRoute
+  VagasJobIdRoute: typeof VagasJobIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -74,30 +75,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VagasRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/vagas/$jobId': {
-      id: '/vagas/$jobId'
-      path: '/$jobId'
+    '/vagas_/$jobId': {
+      id: '/vagas_/$jobId'
+      path: '/vagas/$jobId'
       fullPath: '/vagas/$jobId'
       preLoaderRoute: typeof VagasJobIdRouteImport
-      parentRoute: typeof VagasRoute
+      parentRoute: typeof rootRouteImport
     }
   }
 }
 
-interface VagasRouteChildren {
-  VagasJobIdRoute: typeof VagasJobIdRoute
-}
-
-const VagasRouteChildren: VagasRouteChildren = {
-  VagasJobIdRoute: VagasJobIdRoute,
-}
-
-const VagasRouteWithChildren = VagasRoute._addFileChildren(VagasRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  VagasRoute: VagasRouteWithChildren,
+  VagasRoute: VagasRoute,
+  VagasJobIdRoute: VagasJobIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

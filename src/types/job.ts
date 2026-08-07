@@ -5,33 +5,53 @@ export type WorkplaceType = "remoto" | "hibrido" | "presencial" | "nao_informado
 export type ContractType = "clt" | "pj" | "estagio" | "temporario" | "nao_informado";
 
 export type Seniority =
-  | "estagio"
-  | "junior"
-  | "pleno"
-  | "senior"
-  | "especialista"
-  | "nao_informado";
+  "estagio" | "junior" | "pleno" | "senior" | "especialista" | "nao_informado";
 
 export interface Job {
   id: string;
+
   source: JobSource;
+
   externalId: string;
+
   title: string;
+
   company: string;
+
   companyLogo?: string;
+
   description: string;
+
   requirements: string[];
+
   city: string;
+
   state: string;
+
+  country?: string;
+
   locationText: string;
+
   workplaceType: WorkplaceType;
+
   contractType: ContractType;
+
   seniority: Seniority;
+
   category: string;
+
+  skills?: string[];
+
   applicationUrl: string;
+
+  applicationDeadline?: string | null;
+
   publishedAt: string;
+
   firstSeenAt: string;
+
   lastSeenAt: string;
+
   active: boolean;
 }
 
@@ -39,12 +59,19 @@ export type SortOption = "recentes" | "relevancia";
 
 export interface JobQuery {
   q?: string;
+
   workplaceType?: WorkplaceType | "todos";
+
   seniority?: Seniority | "todos";
+
   state?: string;
+
   category?: string;
+
   contractType?: ContractType | "todos";
+
   source?: JobSource | "todos";
+
   sort?: SortOption;
 }
 

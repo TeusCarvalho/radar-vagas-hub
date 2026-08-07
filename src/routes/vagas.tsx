@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, type SearchSchemaInput } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Search, SlidersHorizontal, AlertCircle, SearchX } from "lucide-react";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+
 import {
   Select,
   SelectContent,
@@ -30,6 +31,11 @@ import type {
   WorkplaceType,
 } from "@/types/job";
 
+/**
+ * Valores já validados e disponíveis dentro da página.
+ *
+ * Aqui todos existem porque validateSearch aplica os valores padrão.
+ */
 interface VagasSearch {
   q: string;
   modalidade: string;
@@ -41,19 +47,45 @@ interface VagasSearch {
   ordem: string;
 }
 
+/**
+ * Valores aceitos ao navegar para /vagas.
+ *
+ * Todos são opcionais.
+ * Assim, podemos fazer:
+ *
+ * <Link to="/vagas" />
+ *
+ * ou:
+ *
+ * navigate({
+ *   to: "/vagas",
+ *   search: { q: "Analista de Dados" }
+ * })
+ *
+ * sem precisar informar todos os filtros.
+ */
+type VagasSearchInput = Partial<VagasSearch>;
+
 const str = (value: unknown, fallback: string) =>
   typeof value === "string" && value.length > 0 ? value : fallback;
 
 export const Route = createFileRoute("/vagas")({
-  validateSearch: (search: Record<string, unknown>): VagasSearch => ({
-    q: str(search["q"], ""),
-    modalidade: str(search["modalidade"], "todos"),
-    nivel: str(search["nivel"], "todos"),
-    estado: str(search["estado"], "todos"),
-    area: str(search["area"], "todos"),
-    contrato: str(search["contrato"], "todos"),
-    origem: str(search["origem"], "todos"),
-    ordem: str(search["ordem"], "recentes"),
+  validateSearch: (search: VagasSearchInput & SearchSchemaInput): VagasSearch => ({
+    q: str(search.q, ""),
+
+    modalidade: str(search.modalidade, "todos"),
+
+    nivel: str(search.nivel, "todos"),
+
+    estado: str(search.estado, "todos"),
+
+    area: str(search.area, "todos"),
+
+    contrato: str(search.contrato, "todos"),
+
+    origem: str(search.origem, "todos"),
+
+    ordem: str(search.ordem, "recentes"),
   }),
 
   head: () => ({
@@ -82,7 +114,10 @@ export const Route = createFileRoute("/vagas")({
 
 function VagasPage() {
   const search = Route.useSearch();
-  const navigate = useNavigate({ from: Route.fullPath });
+
+  const navigate = useNavigate({
+    from: Route.fullPath,
+  });
 
   const [term, setTerm] = useState(search.q);
 
@@ -92,51 +127,69 @@ function VagasPage() {
 
   const query: JobQuery = {
     q: search.q,
+
     workplaceType: search.modalidade as WorkplaceType | "todos",
+
     seniority: search.nivel as Seniority | "todos",
+
     state: search.estado,
+
     category: search.area,
+
     contractType: search.contrato as ContractType | "todos",
+
     source: search.origem as JobSource | "todos",
+
     sort: search.ordem as SortOption,
   };
 
-  /*
-   * Busca as vagas no repositório.
-   * Atualmente o jobsRepository está conectado ao Supabase.
+  /**
+   * Busca das vagas no Supabase.
    */
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ["jobs", search],
+
     queryFn: () => jobsRepository.search(query),
   });
 
-  /*
+  /**
    * Estados e categorias também vêm do Supabase.
-   * Isso elimina a dependência do antigo jobsSeed.
    */
   const { data: facets } = useQuery({
     queryKey: ["jobs-facets"],
+
     queryFn: () => jobsRepository.listFacets(),
   });
 
   const states = facets?.states ?? [];
+
   const categories = facets?.categories ?? [];
 
   const filters: FilterState = {
     workplaceType: search.modalidade,
+
     seniority: search.nivel,
+
     state: search.estado,
+
     category: search.area,
+
     contractType: search.contrato,
+
     source: search.origem,
   };
 
   const filterKeyMap: Record<keyof FilterState, keyof VagasSearch> = {
     workplaceType: "modalidade",
+
     seniority: "nivel",
+
     state: "estado",
+
     category: "area",
+
     contractType: "contrato",
+
     source: "origem",
   };
 
@@ -146,8 +199,10 @@ function VagasPage() {
   const updateFilter = (key: keyof FilterState, value: string) => {
     navigate({
       to: ".",
-      search: (prev: VagasSearch) => ({
+
+      search: (prev) => ({
         ...prev,
+
         [filterKeyMap[key]]: value,
       }),
     });
@@ -156,6 +211,7 @@ function VagasPage() {
   const clearAll = () => {
     navigate({
       to: ".",
+
       search: {
         q: "",
         modalidade: "todos",
@@ -174,8 +230,10 @@ function VagasPage() {
 
     navigate({
       to: ".",
-      search: (prev: VagasSearch) => ({
+
+      search: (prev) => ({
         ...prev,
+
         q: term.trim(),
       }),
     });
@@ -257,8 +315,10 @@ function VagasPage() {
                   onValueChange={(value) =>
                     navigate({
                       to: ".",
-                      search: (prev: VagasSearch) => ({
+
+                      search: (prev) => ({
                         ...prev,
+
                         ordem: value,
                       }),
                     })
