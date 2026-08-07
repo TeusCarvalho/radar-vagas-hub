@@ -1,59 +1,450 @@
-# Radar de Vagas
+Radar Vagas
 
-Crie um MVP público chamado “Radar Vagas”, em português do Brasil, para funcionar como hub de pesquisa de vagas de emprego. O produto deve ter visual profissional, moderno, confiável e responsivo, sem aparência de template genérico. Use React + TypeScript + Tailwind + shadcn/ui.
+Hub gratuito e independente para pesquisa de vagas públicas de emprego em múltiplas plataformas de recrutamento.
 
-Objetivo: qualquer pessoa deve conseguir acessar o site, pesquisar vagas e ser redirecionada ao anúncio original para se candidatar. A futura fonte de dados será um coletor de vagas da Gupy e InHire, portanto deixe a arquitetura preparada para Supabase/PostgreSQL e integração por API.
+Status: Beta públicoProdução: https://teuscarvalho-radar-vagas-hub.teuscarvalho.workers.dev
 
-Páginas e funcionalidades do MVP:
-1. Página inicial com cabeçalho, marca Radar Vagas, texto curto “Encontre oportunidades em várias empresas em um só lugar”, campo de busca principal e CTA “Buscar vagas”.
-2. Página/listagem de vagas com pesquisa por cargo, palavra-chave ou empresa.
-3. Filtros: modalidade (remoto, híbrido, presencial), senioridade (estágio, júnior, pleno, sênior, especialista), estado/localidade, área profissional, tipo de contrato e plataforma de origem (Gupy ou InHire).
-4. Ordenação por mais recentes e relevância.
-5. Cards contendo cargo, empresa, localidade, modalidade, nível, tipo de contrato, origem, data relativa e botão “Ver vaga”.
-6. Página de detalhes da vaga com descrição, requisitos, informações resumidas e botão destacado “Candidatar-se no site da empresa”, abrindo o link original em nova aba.
-7. Estados de carregamento, vazio e erro.
-8. Layout mobile-first, acessível e com SEO básico.
-9. Rodapé com aviso de que o Radar Vagas agrega oportunidades e que a candidatura ocorre no site original.
-10. Criar uma pequena base de dados demonstrativa local com pelo menos 18 vagas variadas para que todos os filtros funcionem imediatamente.
+Sobre o projeto
 
-Estrutura de dados de cada vaga: id, source, externalId, title, company, companyLogo opcional, description, requirements, city, state, locationText, workplaceType, contractType, seniority, category, applicationUrl, publishedAt, firstSeenAt, lastSeenAt, active.
+O Radar Vagas é um projeto de engenharia de dados e desenvolvimento web criado para agregar, normalizar e organizar oportunidades públicas de emprego em um único catálogo.
 
-Design:
-- Fundo claro e limpo.
-- Cor principal azul-petróleo ou azul profundo com acento verde discreto.
-- Tipografia forte, bom espaçamento e cards elegantes.
-- Evite excesso de gradientes.
-- Inclua chips visuais para remoto, nível e contrato.
-- Inclua contador de resultados e botão para limpar filtros.
+A aplicação integra diferentes ATS (Applicant Tracking Systems), transforma schemas heterogêneos em um modelo canônico e disponibiliza as vagas em uma interface com busca e filtros.
 
-Arquitetura:
-- Separe componentes, páginas, tipos, dados e serviços.
-- Use React Router.
-- Crie um serviço/repositório de vagas que hoje lê dados locais, mas cuja interface possa depois ser substituída por Supabase sem alterar as páginas.
-- Use parâmetros da URL para persistir busca e filtros.
-- Não implemente login neste MVP.
+A candidatura não acontece no Radar Vagas. O usuário é direcionado para a página oficial da oportunidade.
 
-Entregue o site navegável e sem erros de TypeScript.
+Fontes integradas
 
-This project was built with [Lovable](https://lovable.dev).
+Atualmente o Radar Vagas integra:
 
-**Live app**: https://radar-vagas-hub.lovable.app
+Gupy
 
-## Build with Lovable
+InHire
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/310c1a03-7316-45ae-b593-838eb4f37601).
+Greenhouse
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+Lever
 
-## Development
+Ashby
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Cada fonte possui um coletor próprio, responsável por adaptar os dados nativos para o schema interno do projeto.
 
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+Pipeline
+
+Gupy
+InHire
+Greenhouse
+Lever
+Ashby
+   ↓
+Coletores por fonte
+   ↓
+Normalização
+   ↓
+Janela móvel de 15 dias
+   ↓
+Validação
+   ↓
+Merge
+   ↓
+Deduplicação
+   ↓
+Supabase / PostgreSQL
+   ↓
+jobsRepository
+   ↓
+Frontend React
+   ↓
+Cloudflare Workers
+
+Regra de atualização
+
+O catálogo principal trabalha com uma janela móvel de 15 dias.
+
+Somente vagas com data de publicação considerada confiável pela integração entram no conjunto principal.
+
+O projeto não inventa datas ausentes.
+
+Essa estratégia reduz vagas antigas, links obsoletos e ruído no catálogo.
+
+Última execução validada
+
+Execução realizada em 07/08/2026:
+
+Fonte
+
+Vagas válidas
+
+Gupy
+
+10.186
+
+InHire
+
+1.672
+
+Greenhouse
+
+432
+
+Lever
+
+75
+
+Ashby
+
+114
+
+Total
+
+12.479
+
+A quantidade de vagas é dinâmica e varia a cada execução do pipeline.
+
+Na execução acima:
+
+12.479 registros foram processados no merge;
+
+0 duplicidades intra-fonte foram encontradas;
+
+0 duplicidades cross-source foram removidas pelo critério conservador atual;
+
+0 registros ficaram inválidos após o merge;
+
+os 12.479 registros foram enviados ao Supabase.
+
+Normalização
+
+As diferentes plataformas utilizam nomenclaturas e schemas distintos.
+
+O Radar Vagas converte os dados para um contrato comum.
+
+Modalidade
+
+remote
+hybrid
+onsite
+unknown
+
+Senioridade
+
+estagio
+junior
+pleno
+senior
+especialista
+nao_informado
+
+Contrato
+
+clt
+pj
+estagio
+temporario
+nao_informado
+
+O projeto evita inferências agressivas.
+
+Por exemplo:
+
+FullTime != CLT
+Contract != PJ
+
+Quando não existe evidência suficiente, o valor normalizado permanece como nao_informado.
+
+Categorias profissionais
+
+O Radar Vagas não é limitado à área de tecnologia ou dados.
+
+O classificador atual contempla:
+
+Dados e Analytics
+
+Business Intelligence
+
+Tecnologia
+
+Produto
+
+Comercial e Vendas
+
+Marketing e Growth
+
+Financeiro e Contábil
+
+Recursos Humanos
+
+Logística e Operações
+
+Engenharia
+
+Saúde
+
+Administrativo
+
+Atendimento e Suporte
+
+Jurídico
+
+Compras e Suprimentos
+
+Educação
+
+Negócios e Estratégia
+
+Design
+
+Outros
+
+Deduplicação
+
+O pipeline possui duas camadas de deduplicação.
+
+Intra-fonte
+
+Chave:
+
+source + external_id
+
+Entre plataformas
+
+Critério conservador baseado na normalização exata de:
+
+empresa + título + localização
+
+Quando existe dúvida, o sistema prefere manter os dois registros para evitar remover vagas legítimas.
+
+Persistência
+
+O backend utiliza Supabase/PostgreSQL.
+
+A chave natural utilizada no upsert é:
+
+(source, external_id)
+
+Campos relevantes incluem:
+
+source
+external_id
+title
+company
+category
+seniority
+workplace_type
+contract_type
+location_text
+city
+state
+country
+salary_min
+salary_max
+salary_currency
+salary_interval
+application_url
+skills
+published_at
+first_seen_at
+last_seen_at
+active
+
+O banco utiliza Row Level Security (RLS).
+
+Usuários públicos possuem somente acesso de leitura às vagas ativas.
+
+As operações administrativas de sincronização utilizam chave secreta apenas no ambiente de execução dos scripts.
+
+Privacidade e conteúdo das vagas
+
+O Radar Vagas funciona como agregador e indexador.
+
+Por padrão, o sistema não republica a descrição completa da vaga.
+
+Na interface pública é exibida a mensagem:
+
+Consulte a descrição completa, os requisitos e as condições na página oficial da vaga.
+
+O botão de candidatura direciona o usuário para a fonte original.
+
+Tecnologias
+
+Frontend
+
+React
+
+TypeScript
+
+TanStack Router
+
+TanStack Query
+
+Vite
+
+Tailwind CSS
+
+Radix UI
+
+Dados e backend
+
+Node.js
+
+JavaScript ES Modules
+
+Supabase
+
+PostgreSQL
+
+Infraestrutura
+
+Cloudflare Workers
+
+Wrangler
+
+Nitro
+
+Estrutura principal
+
+radar-vagas-hub/
+├── scripts/
+│   ├── collector-standard.mjs
+│   ├── collect-gupy.mjs
+│   ├── collect-inhire.mjs
+│   ├── collect-greenhouse.mjs
+│   ├── collect-lever.mjs
+│   ├── collect-ashby.mjs
+│   ├── merge-jobs.mjs
+│   └── sync-supabase.mjs
+│
+├── src/
+│   ├── components/
+│   ├── routes/
+│   ├── services/
+│   │   └── jobsRepository.ts
+│   ├── types/
+│   │   └── job.ts
+│   └── ...
+│
+└── package.json
+
+Variáveis de ambiente
+
+Exemplo:
+
+VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+
+SUPABASE_URL=https://SEU-PROJETO.supabase.co
+SUPABASE_SECRET_KEY=sb_secret_...
+
+Importante
+
+Nunca exponha:
+
+SUPABASE_SECRET_KEY
+
+em código frontend, commits, logs públicos ou variáveis com prefixo VITE_.
+
+Arquivos locais de ambiente devem permanecer fora do Git.
+
+Execução local
+
+Instale as dependências:
+
+npm install
+
+Execute o frontend:
+
 npm run dev
-```
+
+Build de produção:
+
+npm run build
+
+Pipeline de dados
+
+Execute os coletores correspondentes e depois:
+
+node scripts/merge-jobs.mjs
+
+Teste a sincronização:
+
+node scripts/sync-supabase.mjs
+
+Aplicação real no Supabase:
+
+node scripts/sync-supabase.mjs --apply
+
+Deploy
+
+Build:
+
+npm run build
+
+Deploy no Cloudflare:
+
+npx nitro deploy --prebuilt
+
+Rotas públicas
+
+/
+/vagas
+/vagas/$jobId
+/sobre
+/termos
+/privacidade
+
+Objetivos técnicos demonstrados
+
+Este projeto foi construído também como case prático de:
+
+integração com múltiplas fontes públicas;
+
+consumo de APIs;
+
+engenharia de dados;
+
+paginação em grandes volumes;
+
+ETL;
+
+normalização de schemas;
+
+qualidade de dados;
+
+deduplicação;
+
+modelagem PostgreSQL;
+
+sincronização idempotente;
+
+segurança com RLS;
+
+React e TypeScript;
+
+arquitetura desacoplada;
+
+deploy serverless.
+
+Próximas evoluções
+
+Possíveis melhorias futuras:
+
+execução automática diária do pipeline;
+
+filtros executados diretamente no PostgreSQL;
+
+paginação server-side;
+
+observabilidade dos coletores;
+
+métricas de qualidade por fonte;
+
+domínio próprio;
+
+alertas e favoritos, caso o produto evolua para contas de usuário.
+
+Aviso
+
+O Radar Vagas é um projeto independente e não possui vínculo oficial com Gupy, InHire, Greenhouse, Lever, Ashby ou com as empresas cujas oportunidades aparecem no catálogo.
+
+As vagas, marcas e conteúdos pertencem aos seus respectivos titulares.
+
+A página oficial da oportunidade deve ser considerada a fonte definitiva para requisitos, condições e candidatura.
