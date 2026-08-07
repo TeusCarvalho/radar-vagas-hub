@@ -37,10 +37,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: npm
 
       - name: Instalar dependências
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Validar secrets obrigatórios
         shell: bash
@@ -59,6 +58,17 @@ jobs:
             echo "::error::SUPABASE_SECRET_KEY não parece ser uma Secret Key do Supabase."
             exit 1
           fi
+
+      - name: Remover resultados antigos do checkout
+        shell: bash
+        run: |
+          rm -f scripts/gupy-results.json
+          rm -f scripts/inhire-results.json
+          rm -f scripts/greenhouse-results.json
+          rm -f scripts/lever-results.json
+          rm -f scripts/ashby-results.json
+          rm -f scripts/radar-jobs.json
+          rm -f scripts/radar-jobs-report.json
 
       - name: Coletar Gupy
         run: node scripts/collect-gupy.mjs
@@ -105,7 +115,9 @@ jobs:
 
           for (const source of expected) {
             if (!sources.has(source)) {
-              throw new Error(`Fonte ausente no merge: ${source}. Sync cancelado por segurança.`);
+              throw new Error(
+                `Fonte ausente no merge: ${source}. Sync cancelado por segurança.`,
+              );
             }
           }
 
@@ -125,8 +137,8 @@ jobs:
           echo "- Horário UTC: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "$GITHUB_STEP_SUMMARY"
 
           if [ -f scripts/radar-jobs.json ]; then
-            TOTAL=$(node -e "const j=require('./scripts/radar-jobs.json'); console.log(j.length)")
-            echo "- Vagas no merge: $TOTAL" >> "$GITHUB_STEP_SUMMARY"
+            TOTAL=$(node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('./scripts/radar-jobs.json','utf8')); console.log(j.length)")
+            echo "- Merge desta execução: $TOTAL vagas" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "- Vagas no merge: arquivo não disponível" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Merge desta execução: não concluído" >> "$GITHUB_STEP_SUMMARY"
           fi
