@@ -1,4 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 
 import {
   ArrowLeft,
@@ -49,7 +50,9 @@ export const Route = createFileRoute("/vagas_/$jobId")({
 
     const title = `${job.title} — ${job.company} | Radar Vagas`;
 
-    const description = `${job.title} na ${job.company} (${job.locationText}) · ${WORKPLACE_LABELS[job.workplaceType]} · ${SENIORITY_LABELS[job.seniority]}.`;
+    const description = `${job.title} na ${job.company} (${job.locationText}) · ${
+      WORKPLACE_LABELS[job.workplaceType]
+    } · ${SENIORITY_LABELS[job.seniority]}.`;
 
     return {
       meta: [
@@ -76,7 +79,7 @@ export const Route = createFileRoute("/vagas_/$jobId")({
 
   errorComponent: () => (
     <PageShell>
-      <main className="mx-auto w-full max-w-4xl px-4 py-16 sm:px-6">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-12 sm:px-6">
         <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-card">
           <h1 className="text-xl font-bold text-foreground">Não foi possível carregar a vaga</h1>
 
@@ -92,7 +95,7 @@ export const Route = createFileRoute("/vagas_/$jobId")({
 
   notFoundComponent: () => (
     <PageShell>
-      <main className="mx-auto w-full max-w-4xl px-4 py-16 sm:px-6">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-12 sm:px-6">
         <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-card">
           <h1 className="text-xl font-bold text-foreground">Vaga não encontrada</h1>
 
@@ -109,9 +112,9 @@ export const Route = createFileRoute("/vagas_/$jobId")({
   ),
 });
 
-function PageShell({ children }: { children: React.ReactNode }) {
+function PageShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
 
       {children}
@@ -124,7 +127,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="border-b border-border py-3 last:border-b-0">
-      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
 
       <dd className="mt-1 text-sm font-semibold text-foreground">{value}</dd>
     </div>
@@ -147,6 +150,218 @@ function formatDeadline(value?: string | null) {
   return value;
 }
 
+type DescriptionSection = {
+  title: string;
+  content: string;
+};
+
+const DESCRIPTION_HEADINGS: Array<{
+  match: string;
+  title: string;
+}> = [
+  {
+    match: "Responsabilidades e atribuições",
+    title: "Responsabilidades e atribuições",
+  },
+  {
+    match: "Requisitos e qualificações",
+    title: "Requisitos e qualificações",
+  },
+  {
+    match: "Principais responsabilidades",
+    title: "Principais responsabilidades",
+  },
+  {
+    match: "Principais atividades",
+    title: "Principais atividades",
+  },
+  {
+    match: "Informações adicionais",
+    title: "Informações adicionais",
+  },
+  {
+    match: "Sobre a oportunidade",
+    title: "Sobre a oportunidade",
+  },
+  {
+    match: "Descrição da vaga",
+    title: "Sobre a vaga",
+  },
+  {
+    match: "Sobre a vaga",
+    title: "Sobre a vaga",
+  },
+  {
+    match: "O que buscamos",
+    title: "O que buscamos",
+  },
+  {
+    match: "Qualificações",
+    title: "Qualificações",
+  },
+  {
+    match: "Requisitos",
+    title: "Requisitos",
+  },
+  {
+    match: "Diferenciais",
+    title: "Diferenciais",
+  },
+  {
+    match: "Benefícios",
+    title: "Benefícios",
+  },
+  {
+    match: "Local de trabalho",
+    title: "Local de trabalho",
+  },
+];
+
+function normalizeKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function cleanSectionText(value: string) {
+  return value
+    .replace(/\u00a0/g, " ")
+    .replace(/^[\s:–—-]+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseDescription(description: string): DescriptionSection[] {
+  const text = description
+    .replace(/\r/g, "")
+    .replace(/\u00a0/g, " ")
+    .trim();
+
+  if (!text) {
+    return [
+      {
+        title: "Sobre a vaga",
+        content: "Descrição não informada pela empresa.",
+      },
+    ];
+  }
+
+  const headings = [...DESCRIPTION_HEADINGS].sort((a, b) => b.match.length - a.match.length);
+
+  const headingMap = new Map(headings.map((item) => [normalizeKey(item.match), item.title]));
+
+  const pattern = new RegExp(
+    `(${headings.map((item) => escapeRegExp(item.match)).join("|")})`,
+    "gi",
+  );
+
+  const pieces = text
+    .split(pattern)
+    .map((piece) => piece.trim())
+    .filter(Boolean);
+
+  const sections: DescriptionSection[] = [];
+
+  let currentTitle = "Sobre a vaga";
+  let currentContent: string[] = [];
+
+  const pushCurrentSection = () => {
+    const content = cleanSectionText(currentContent.join(" "));
+
+    if (!content) {
+      currentContent = [];
+      return;
+    }
+
+    sections.push({
+      title: currentTitle,
+      content,
+    });
+
+    currentContent = [];
+  };
+
+  for (const piece of pieces) {
+    const headingTitle = headingMap.get(normalizeKey(piece));
+
+    if (headingTitle) {
+      pushCurrentSection();
+      currentTitle = headingTitle;
+      continue;
+    }
+
+    currentContent.push(piece);
+  }
+
+  pushCurrentSection();
+
+  if (sections.length === 0) {
+    return [
+      {
+        title: "Sobre a vaga",
+        content: cleanSectionText(text),
+      },
+    ];
+  }
+
+  return sections;
+}
+
+function DescriptionContent({ content }: { content: string }) {
+  const items = content
+    .split(/\s*;\s*/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  /*
+   * Quando a empresa separa responsabilidades, requisitos ou benefícios
+   * com ponto e vírgula, mostramos como lista.
+   */
+  if (items.length >= 3) {
+    return (
+      <ul className="mt-4 space-y-2.5">
+        {items.map((item, index) => (
+          <li
+            key={`${item}-${index}`}
+            className="flex gap-3 text-sm leading-7 text-muted-foreground"
+          >
+            <span
+              className="mt-[11px] size-1.5 shrink-0 rounded-full bg-brand"
+              aria-hidden="true"
+            />
+
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  return <p className="mt-3 text-sm leading-7 text-muted-foreground">{content}</p>;
+}
+
+function JobDescription({ description }: { description: string }) {
+  const sections = parseDescription(description);
+
+  return (
+    <div className="space-y-8">
+      {sections.map((section, index) => (
+        <section key={`${section.title}-${index}`}>
+          <h2 className="text-lg font-bold text-foreground">{section.title}</h2>
+
+          <DescriptionContent content={section.content} />
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function JobDetailPage() {
   const { job } = Route.useLoaderData() as {
     job: Job;
@@ -156,10 +371,10 @@ function JobDetailPage() {
 
   return (
     <PageShell>
-      <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
         <Link
           to="/vagas"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-brand"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
           Voltar para as vagas
@@ -177,19 +392,16 @@ function JobDetailPage() {
           <p className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <Building2 className="size-4" aria-hidden="true" />
-
               {job.company}
             </span>
 
             <span className="inline-flex items-center gap-1.5">
               <MapPin className="size-4" aria-hidden="true" />
-
               {job.locationText}
             </span>
 
             <span className="inline-flex items-center gap-1.5">
               <CalendarDays className="size-4" aria-hidden="true" />
-
               {relativeDate(job.publishedAt)}
             </span>
           </p>
@@ -207,21 +419,15 @@ function JobDetailPage() {
             </p>
           </div>
 
-          <div className="mt-8 grid gap-8 md:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="mt-10 grid gap-10 md:grid-cols-[minmax(0,1fr)_280px]">
             <div className="min-w-0">
-              <section>
-                <h2 className="text-lg font-bold text-foreground">Sobre a vaga</h2>
-
-                <div className="mt-3 whitespace-pre-line text-sm leading-7 text-muted-foreground">
-                  {job.description}
-                </div>
-              </section>
+              <JobDescription description={job.description} />
 
               {skills.length > 0 && (
-                <section className="mt-8">
+                <section className="mt-10">
                   <h2 className="text-lg font-bold text-foreground">Competências</h2>
 
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-4 flex flex-wrap gap-2">
                     {skills.map((skill) => (
                       <span
                         key={skill}
@@ -234,7 +440,7 @@ function JobDetailPage() {
                 </section>
               )}
 
-              <section className="mt-8 rounded-xl border border-border bg-secondary/30 p-4">
+              <section className="mt-10 rounded-xl border border-border bg-secondary/30 p-4">
                 <p className="text-sm leading-relaxed text-muted-foreground">
                   As informações desta vaga são obtidas da plataforma de origem. Consulte sempre o
                   anúncio original antes de concluir sua candidatura.
@@ -242,7 +448,7 @@ function JobDetailPage() {
               </section>
             </div>
 
-            <aside className="h-fit rounded-xl border border-border bg-secondary/40 p-4">
+            <aside className="h-fit rounded-xl border border-border bg-secondary/40 p-4 md:sticky md:top-24">
               <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
                 <BriefcaseBusiness className="size-4" aria-hidden="true" />
                 Resumo
