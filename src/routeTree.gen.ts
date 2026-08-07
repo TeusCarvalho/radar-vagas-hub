@@ -10,12 +10,30 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PrivacidadeRouteImport } from './routes/privacidade'
+import { Route as SobreRouteImport } from './routes/sobre'
+import { Route as TermosRouteImport } from './routes/termos'
 import { Route as VagasRouteImport } from './routes/vagas'
 import { Route as VagasJobIdRouteImport } from './routes/vagas_.$jobId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacidadeRoute = PrivacidadeRouteImport.update({
+  id: '/privacidade',
+  path: '/privacidade',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SobreRoute = SobreRouteImport.update({
+  id: '/sobre',
+  path: '/sobre',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermosRoute = TermosRouteImport.update({
+  id: '/termos',
+  path: '/termos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VagasRoute = VagasRouteImport.update({
@@ -31,30 +49,50 @@ const VagasJobIdRoute = VagasJobIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/privacidade': typeof PrivacidadeRoute
+  '/sobre': typeof SobreRoute
+  '/termos': typeof TermosRoute
   '/vagas': typeof VagasRoute
   '/vagas/$jobId': typeof VagasJobIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/privacidade': typeof PrivacidadeRoute
+  '/sobre': typeof SobreRoute
+  '/termos': typeof TermosRoute
   '/vagas': typeof VagasRoute
   '/vagas/$jobId': typeof VagasJobIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/privacidade': typeof PrivacidadeRoute
+  '/sobre': typeof SobreRoute
+  '/termos': typeof TermosRoute
   '/vagas': typeof VagasRoute
   '/vagas_/$jobId': typeof VagasJobIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/vagas' | '/vagas/$jobId'
+  fullPaths:
+    '/' | '/privacidade' | '/sobre' | '/termos' | '/vagas' | '/vagas/$jobId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/vagas' | '/vagas/$jobId'
-  id: '__root__' | '/' | '/vagas' | '/vagas_/$jobId'
+  to: '/' | '/privacidade' | '/sobre' | '/termos' | '/vagas' | '/vagas/$jobId'
+  id:
+    | '__root__'
+    | '/'
+    | '/privacidade'
+    | '/sobre'
+    | '/termos'
+    | '/vagas'
+    | '/vagas_/$jobId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PrivacidadeRoute: typeof PrivacidadeRoute
+  SobreRoute: typeof SobreRoute
+  TermosRoute: typeof TermosRoute
   VagasRoute: typeof VagasRoute
   VagasJobIdRoute: typeof VagasJobIdRoute
 }
@@ -66,6 +104,27 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacidade': {
+      id: '/privacidade'
+      path: '/privacidade'
+      fullPath: '/privacidade'
+      preLoaderRoute: typeof PrivacidadeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sobre': {
+      id: '/sobre'
+      path: '/sobre'
+      fullPath: '/sobre'
+      preLoaderRoute: typeof SobreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/termos': {
+      id: '/termos'
+      path: '/termos'
+      fullPath: '/termos'
+      preLoaderRoute: typeof TermosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/vagas': {
@@ -87,6 +146,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PrivacidadeRoute: PrivacidadeRoute,
+  SobreRoute: SobreRoute,
+  TermosRoute: TermosRoute,
   VagasRoute: VagasRoute,
   VagasJobIdRoute: VagasJobIdRoute,
 }

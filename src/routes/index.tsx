@@ -1,38 +1,36 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { Search, SlidersHorizontal, ExternalLink, Database } from "lucide-react";
 import { useState } from "react";
-import { Search, Building2, SlidersHorizontal, ExternalLink } from "lucide-react";
+import type { FormEvent } from "react";
 
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { jobsRepository } from "@/services/jobsRepository";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       {
-        title: "Radar Vagas — busque vagas de emprego em um só lugar",
+        title: "Radar Vagas — vagas de emprego em um só lugar",
       },
       {
         name: "description",
         content:
-          "O Radar Vagas reúne oportunidades de várias empresas publicadas na Gupy e InHire. Pesquise por cargo, empresa ou palavra-chave.",
+          "Pesquise oportunidades públicas de emprego agregadas de Gupy, InHire, Greenhouse, Lever e Ashby. O Radar Vagas direciona você para a página oficial da vaga.",
       },
       {
         property: "og:title",
-        content: "Radar Vagas — vagas de várias empresas em um só lugar",
+        content: "Radar Vagas — vagas de emprego em um só lugar",
       },
       {
         property: "og:description",
         content:
-          "Pesquise vagas por cargo, empresa, modalidade e senioridade. Candidatura no site original.",
+          "Encontre vagas recentes e candidate-se sempre pela página oficial da oportunidade.",
       },
     ],
   }),
-
   component: HomePage,
 });
 
@@ -40,46 +38,20 @@ function HomePage() {
   const navigate = useNavigate();
   const [term, setTerm] = useState("");
 
-  /*
-   * Busca a quantidade real de vagas disponíveis.
-   * Os dados vêm do Supabase através do jobsRepository.
-   */
-  const { data: jobsData, isPending: isJobsPending } = useQuery({
-    queryKey: ["home-jobs-count"],
-    queryFn: () =>
-      jobsRepository.search({
-        q: "",
-        sort: "recentes",
-      }),
-  });
-
-  /*
-   * Busca as categorias reais cadastradas no Supabase.
-   */
-  const { data: facets } = useQuery({
-    queryKey: ["jobs-facets"],
-    queryFn: () => jobsRepository.listFacets(),
-  });
-
-  const categories = facets?.categories ?? [];
-  const totalJobs = jobsData?.total ?? 0;
-
-  const submitSearch = (event: React.FormEvent) => {
+  const submitSearch = (event: FormEvent) => {
     event.preventDefault();
 
     navigate({
       to: "/vagas",
       search: {
         q: term.trim(),
-      },
-    });
-  };
-
-  const searchCategory = (category: string) => {
-    navigate({
-      to: "/vagas",
-      search: {
-        area: category,
+        modalidade: "todos",
+        nivel: "todos",
+        estado: "todos",
+        area: "todos",
+        contrato: "todos",
+        origem: "todos",
+        ordem: "recentes",
       },
     });
   };
@@ -89,35 +61,33 @@ function HomePage() {
       <SiteHeader />
 
       <main className="flex-1">
-        {/* Hero */}
-        <section className="border-b border-border bg-surface">
+        <section className="border-b border-border">
           <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
-            <div className="mx-auto max-w-3xl text-center">
-              <p className="text-sm font-semibold uppercase tracking-wide text-brand">
-                Hub de pesquisa de vagas
-              </p>
+            <div className="max-w-3xl">
+              <p className="text-sm font-semibold text-brand">Hub gratuito de pesquisa de vagas</p>
 
-              <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-foreground sm:text-5xl">
-                Encontre oportunidades em várias empresas em um só lugar
+              <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl">
+                Encontre oportunidades recentes em um só lugar
               </h1>
 
-              <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                Pesquise vagas publicadas em plataformas como Gupy e InHire, filtre as oportunidades
-                e faça sua candidatura diretamente no site original da empresa.
+              <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+                O Radar Vagas organiza oportunidades públicas de diferentes plataformas de
+                recrutamento e direciona você para a página oficial da vaga para realizar a
+                candidatura.
               </p>
 
               <form
                 onSubmit={submitSearch}
-                className="mx-auto mt-8 flex max-w-2xl flex-col gap-3 sm:flex-row"
+                className="mt-8 flex flex-col gap-3 sm:flex-row"
                 role="search"
               >
                 <div className="relative flex-1">
                   <Label htmlFor="busca-home" className="sr-only">
-                    Buscar vagas por cargo, palavra-chave ou empresa
+                    Buscar vagas
                   </Label>
 
                   <Search
-                    className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground"
+                    className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
                     aria-hidden="true"
                   />
 
@@ -126,121 +96,63 @@ function HomePage() {
                     value={term}
                     onChange={(event) => setTerm(event.target.value)}
                     placeholder="Cargo, palavra-chave ou empresa"
-                    className="h-12 bg-background pl-11 text-base"
+                    className="pl-9"
                   />
                 </div>
 
-                <Button type="submit" size="lg" className="h-12">
-                  Buscar vagas
-                </Button>
+                <Button type="submit">Buscar vagas</Button>
               </form>
-            </div>
-          </div>
-        </section>
 
-        {/* Categorias */}
-        {categories.length > 0 && (
-          <section className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-            <div className="text-center">
-              <h2 className="text-xl font-bold tracking-tight text-foreground">Explore por área</h2>
-
-              <p className="mt-1 text-sm text-muted-foreground">
-                Veja oportunidades nas áreas disponíveis no radar.
-              </p>
-            </div>
-
-            <div className="mt-6 flex flex-wrap justify-center gap-2">
-              {categories.slice(0, 10).map((category) => (
-                <Button key={category} variant="outline" onClick={() => searchCategory(category)}>
-                  {category}
+              <div className="mt-5">
+                <Button asChild variant="outline">
+                  <Link to="/vagas">Ver todas as vagas</Link>
                 </Button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Benefícios */}
-        <section className="border-y border-border bg-surface">
-          <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6">
-            <div className="text-center">
-              <h2 className="text-xl font-bold tracking-tight text-foreground">
-                Como o Radar Vagas ajuda
-              </h2>
-
-              <p className="mt-2 text-sm text-muted-foreground">
-                Uma busca simples para encontrar oportunidades em diferentes empresas e plataformas.
-              </p>
-            </div>
-
-            <div className="mt-8 grid gap-4 md:grid-cols-3">
-              <div className="rounded-2xl border border-border bg-card p-6 shadow-card">
-                <div className="flex size-10 items-center justify-center rounded-xl bg-brand/10">
-                  <Search className="size-5 text-brand" aria-hidden="true" />
-                </div>
-
-                <h3 className="mt-4 font-bold text-foreground">Pesquisa centralizada</h3>
-
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Busque oportunidades por cargo, palavra-chave ou empresa sem precisar pesquisar
-                  plataforma por plataforma.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-card p-6 shadow-card">
-                <div className="flex size-10 items-center justify-center rounded-xl bg-brand/10">
-                  <SlidersHorizontal className="size-5 text-brand" aria-hidden="true" />
-                </div>
-
-                <h3 className="mt-4 font-bold text-foreground">Filtros úteis</h3>
-
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Refine a pesquisa por modalidade, senioridade, área, localização, contrato e
-                  plataforma de origem.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-card p-6 shadow-card">
-                <div className="flex size-10 items-center justify-center rounded-xl bg-brand/10">
-                  <ExternalLink className="size-5 text-brand" aria-hidden="true" />
-                </div>
-
-                <h3 className="mt-4 font-bold text-foreground">Candidatura na fonte</h3>
-
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Ao encontrar uma oportunidade, você é direcionado para o anúncio original da
-                  empresa para realizar a candidatura.
-                </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Quantidade de vagas */}
         <section className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6">
-          <div className="flex flex-col items-center justify-between gap-5 rounded-2xl border border-border bg-card p-6 shadow-card sm:flex-row">
-            <div className="flex items-center gap-4">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand/10">
-                <Building2 className="size-5 text-brand" aria-hidden="true" />
-              </div>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">
+            Como o Radar Vagas ajuda
+          </h2>
 
-              <div>
-                <p className="font-bold text-foreground">
-                  {isJobsPending
-                    ? "Carregando vagas disponíveis..."
-                    : `${totalJobs} ${
-                        totalJobs === 1 ? "vaga disponível" : "vagas disponíveis"
-                      } agora no radar`}
-                </p>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <article className="rounded-2xl border border-border bg-card p-6">
+              <Database className="size-5 text-brand" aria-hidden="true" />
+              <h3 className="mt-4 font-semibold text-foreground">Cinco fontes integradas</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Gupy, InHire, Greenhouse, Lever e Ashby são normalizadas em um único catálogo.
+              </p>
+            </article>
 
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Novas oportunidades serão adicionadas automaticamente ao radar.
-                </p>
-              </div>
-            </div>
+            <article className="rounded-2xl border border-border bg-card p-6">
+              <SlidersHorizontal className="size-5 text-brand" aria-hidden="true" />
+              <h3 className="mt-4 font-semibold text-foreground">Busca e filtros</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Refine oportunidades por modalidade, senioridade, estado, área, contrato e
+                plataforma de origem.
+              </p>
+            </article>
 
-            <Button asChild>
-              <Link to="/vagas">Ver todas as vagas</Link>
-            </Button>
+            <article className="rounded-2xl border border-border bg-card p-6">
+              <ExternalLink className="size-5 text-brand" aria-hidden="true" />
+              <h3 className="mt-4 font-semibold text-foreground">Candidatura na fonte oficial</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                O Radar não recebe candidaturas. Você sempre é direcionado para a página original da
+                oportunidade.
+              </p>
+            </article>
+          </div>
+
+          <div className="mt-8 rounded-2xl border border-border bg-card p-6">
+            <p className="font-semibold text-foreground">
+              Catálogo focado em oportunidades recentes
+            </p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              O catálogo principal mantém vagas com data confiável publicadas dentro da janela
+              padrão dos últimos 15 dias.
+            </p>
           </div>
         </section>
       </main>

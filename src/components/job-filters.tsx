@@ -45,16 +45,17 @@ function FilterSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </Label>
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} className="w-full bg-surface">
+        <SelectTrigger id={id} className="w-full">
           <SelectValue placeholder={allLabel} />
         </SelectTrigger>
+
         <SelectContent>
           <SelectItem value="todos">{allLabel}</SelectItem>
+
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
@@ -75,17 +76,21 @@ export function JobFilters({
   onClear,
 }: JobFiltersProps) {
   const toOptions = (record: Record<string, string>) =>
-    Object.entries(record).map(([key, label]) => ({ value: key, label }));
+    Object.entries(record).map(([key, label]) => ({
+      value: key,
+      label,
+    }));
 
   return (
-    <section
+    <aside
+      className="rounded-2xl border border-border bg-card p-5 shadow-sm"
       aria-label="Filtros de vagas"
-      className="rounded-2xl border border-border bg-card p-5 shadow-card"
     >
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold text-foreground">Filtros</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-foreground">Filtros</h2>
+
         {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={onClear} className="h-8 text-brand">
+          <Button type="button" variant="ghost" size="sm" onClick={onClear} className="gap-1.5">
             <X className="size-4" aria-hidden="true" />
             Limpar
           </Button>
@@ -101,6 +106,7 @@ export function JobFilters({
           options={toOptions(WORKPLACE_LABELS)}
           onChange={(v) => onChange("workplaceType", v)}
         />
+
         <FilterSelect
           id="filtro-senioridade"
           label="Senioridade"
@@ -109,39 +115,49 @@ export function JobFilters({
           options={toOptions(SENIORITY_LABELS)}
           onChange={(v) => onChange("seniority", v)}
         />
+
         <FilterSelect
           id="filtro-estado"
           label="Estado"
           allLabel="Todos os estados"
           value={value.state}
-          options={states.map((s) => ({ value: s, label: s }))}
+          options={states.map((state) => ({
+            value: state,
+            label: state,
+          }))}
           onChange={(v) => onChange("state", v)}
         />
+
         <FilterSelect
           id="filtro-area"
-          label="Área profissional"
+          label="Área"
           allLabel="Todas as áreas"
           value={value.category}
-          options={categories.map((c) => ({ value: c, label: c }))}
+          options={categories.map((category) => ({
+            value: category,
+            label: category,
+          }))}
           onChange={(v) => onChange("category", v)}
         />
+
         <FilterSelect
           id="filtro-contrato"
-          label="Tipo de contrato"
+          label="Contrato"
           allLabel="Todos os contratos"
           value={value.contractType}
           options={toOptions(CONTRACT_LABELS)}
           onChange={(v) => onChange("contractType", v)}
         />
+
         <FilterSelect
           id="filtro-origem"
-          label="Plataforma de origem"
+          label="Origem"
           allLabel="Todas as plataformas"
           value={value.source}
           options={toOptions(SOURCE_LABELS)}
           onChange={(v) => onChange("source", v)}
         />
       </div>
-    </section>
+    </aside>
   );
 }

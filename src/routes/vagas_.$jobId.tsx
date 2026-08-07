@@ -1,23 +1,22 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import type { ReactNode } from "react";
-
 import {
   ArrowLeft,
-  BriefcaseBusiness,
   Building2,
   CalendarDays,
   ExternalLink,
   MapPin,
+  BriefcaseBusiness,
+  Coins,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { relativeDate } from "@/lib/format";
 import { jobsRepository } from "@/services/jobsRepository";
-
 import { CONTRACT_LABELS, SENIORITY_LABELS, SOURCE_LABELS, WORKPLACE_LABELS } from "@/types/job";
-
 import type { Job } from "@/types/job";
 
 export const Route = createFileRoute("/vagas_/$jobId")({
@@ -35,42 +34,22 @@ export const Route = createFileRoute("/vagas_/$jobId")({
     if (!loaderData) {
       return {
         meta: [
-          {
-            title: "Vaga indisponível | Radar Vagas",
-          },
-          {
-            name: "robots",
-            content: "noindex",
-          },
+          { title: "Vaga indisponível | Radar Vagas" },
+          { name: "robots", content: "noindex" },
         ],
       };
     }
 
     const { job } = loaderData;
-
     const title = `${job.title} — ${job.company} | Radar Vagas`;
-
-    const description = `${job.title} na ${job.company} (${job.locationText}) · ${
-      WORKPLACE_LABELS[job.workplaceType]
-    } · ${SENIORITY_LABELS[job.seniority]}.`;
+    const description = `${job.title} na ${job.company} (${job.locationText}) · ${WORKPLACE_LABELS[job.workplaceType]} · ${SENIORITY_LABELS[job.seniority]}.`;
 
     return {
       meta: [
-        {
-          title,
-        },
-        {
-          name: "description",
-          content: description,
-        },
-        {
-          property: "og:title",
-          content: title,
-        },
-        {
-          property: "og:description",
-          content: description,
-        },
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
       ],
     };
   },
@@ -79,35 +58,34 @@ export const Route = createFileRoute("/vagas_/$jobId")({
 
   errorComponent: () => (
     <PageShell>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-12 sm:px-6">
-        <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-card">
-          <h1 className="text-xl font-bold text-foreground">Não foi possível carregar a vaga</h1>
+      <div
+        role="alert"
+        className="rounded-2xl border border-destructive/30 bg-card p-10 text-center"
+      >
+        <h1 className="text-lg font-bold text-foreground">Não foi possível carregar a vaga</h1>
 
-          <p className="mt-2 text-sm text-muted-foreground">Tente novamente em instantes.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Tente novamente em instantes.</p>
 
-          <Button asChild className="mt-6">
-            <Link to="/vagas">Voltar para as vagas</Link>
-          </Button>
-        </div>
-      </main>
+        <Button asChild className="mt-5">
+          <Link to="/vagas">Voltar para as vagas</Link>
+        </Button>
+      </div>
     </PageShell>
   ),
 
   notFoundComponent: () => (
     <PageShell>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-12 sm:px-6">
-        <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-card">
-          <h1 className="text-xl font-bold text-foreground">Vaga não encontrada</h1>
+      <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-card">
+        <h1 className="text-lg font-bold text-foreground">Vaga não encontrada</h1>
 
-          <p className="mt-2 text-sm text-muted-foreground">
-            Esta oportunidade pode ter sido encerrada ou removida da plataforma de origem.
-          </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Esta oportunidade pode ter sido encerrada ou removida da plataforma de origem.
+        </p>
 
-          <Button asChild className="mt-6">
-            <Link to="/vagas">Ver outras vagas</Link>
-          </Button>
-        </div>
-      </main>
+        <Button asChild className="mt-5">
+          <Link to="/vagas">Ver outras vagas</Link>
+        </Button>
+      </div>
     </PageShell>
   ),
 });
@@ -116,368 +94,168 @@ function PageShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
-
-      {children}
-
+      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">{children}</main>
       <SiteFooter />
     </div>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoItem({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}) {
   return (
-    <div className="border-b border-border py-3 last:border-b-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-
-      <dd className="mt-1 text-sm font-semibold text-foreground">{value}</dd>
+    <div className="flex gap-3">
+      <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden={true} />
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="mt-0.5 text-sm text-foreground">{value}</p>
+      </div>
     </div>
   );
 }
 
-function formatDeadline(value?: string | null) {
-  if (!value) {
-    return "Não informado";
+function formatSalary(job: Job): string | null {
+  if (job.salaryDescription?.trim()) {
+    return job.salaryDescription.trim();
   }
 
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-
-  if (match) {
-    const [, year, month, day] = match;
-
-    return `${day}/${month}/${year}`;
+  if (job.salaryMin == null && job.salaryMax == null) {
+    return null;
   }
 
-  return value;
-}
+  const currency = job.salaryCurrency || "BRL";
 
-type DescriptionSection = {
-  title: string;
-  content: string;
-};
+  const normalizedCurrency = /^[A-Z]{3}$/.test(currency.toUpperCase())
+    ? currency.toUpperCase()
+    : "BRL";
 
-const DESCRIPTION_HEADINGS: Array<{
-  match: string;
-  title: string;
-}> = [
-  {
-    match: "Responsabilidades e atribuições",
-    title: "Responsabilidades e atribuições",
-  },
-  {
-    match: "Requisitos e qualificações",
-    title: "Requisitos e qualificações",
-  },
-  {
-    match: "Principais responsabilidades",
-    title: "Principais responsabilidades",
-  },
-  {
-    match: "Principais atividades",
-    title: "Principais atividades",
-  },
-  {
-    match: "Informações adicionais",
-    title: "Informações adicionais",
-  },
-  {
-    match: "Sobre a oportunidade",
-    title: "Sobre a oportunidade",
-  },
-  {
-    match: "Descrição da vaga",
-    title: "Sobre a vaga",
-  },
-  {
-    match: "Sobre a vaga",
-    title: "Sobre a vaga",
-  },
-  {
-    match: "O que buscamos",
-    title: "O que buscamos",
-  },
-  {
-    match: "Qualificações",
-    title: "Qualificações",
-  },
-  {
-    match: "Requisitos",
-    title: "Requisitos",
-  },
-  {
-    match: "Diferenciais",
-    title: "Diferenciais",
-  },
-  {
-    match: "Benefícios",
-    title: "Benefícios",
-  },
-  {
-    match: "Local de trabalho",
-    title: "Local de trabalho",
-  },
-];
+  const formatter = new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: normalizedCurrency,
+    maximumFractionDigits: 0,
+  });
 
-function normalizeKey(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function cleanSectionText(value: string) {
-  return value
-    .replace(/\u00a0/g, " ")
-    .replace(/^[\s:–—-]+/, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function parseDescription(description: string): DescriptionSection[] {
-  const text = description
-    .replace(/\r/g, "")
-    .replace(/\u00a0/g, " ")
-    .trim();
-
-  if (!text) {
-    return [
-      {
-        title: "Sobre a vaga",
-        content: "Descrição não informada pela empresa.",
-      },
-    ];
+  if (job.salaryMin != null && job.salaryMax != null) {
+    return `${formatter.format(job.salaryMin)} – ${formatter.format(job.salaryMax)}`;
   }
 
-  const headings = [...DESCRIPTION_HEADINGS].sort((a, b) => b.match.length - a.match.length);
+  const value = job.salaryMin ?? job.salaryMax;
 
-  const headingMap = new Map(headings.map((item) => [normalizeKey(item.match), item.title]));
-
-  const pattern = new RegExp(
-    `(${headings.map((item) => escapeRegExp(item.match)).join("|")})`,
-    "gi",
-  );
-
-  const pieces = text
-    .split(pattern)
-    .map((piece) => piece.trim())
-    .filter(Boolean);
-
-  const sections: DescriptionSection[] = [];
-
-  let currentTitle = "Sobre a vaga";
-  let currentContent: string[] = [];
-
-  const pushCurrentSection = () => {
-    const content = cleanSectionText(currentContent.join(" "));
-
-    if (!content) {
-      currentContent = [];
-      return;
-    }
-
-    sections.push({
-      title: currentTitle,
-      content,
-    });
-
-    currentContent = [];
-  };
-
-  for (const piece of pieces) {
-    const headingTitle = headingMap.get(normalizeKey(piece));
-
-    if (headingTitle) {
-      pushCurrentSection();
-      currentTitle = headingTitle;
-      continue;
-    }
-
-    currentContent.push(piece);
-  }
-
-  pushCurrentSection();
-
-  if (sections.length === 0) {
-    return [
-      {
-        title: "Sobre a vaga",
-        content: cleanSectionText(text),
-      },
-    ];
-  }
-
-  return sections;
-}
-
-function DescriptionContent({ content }: { content: string }) {
-  const items = content
-    .split(/\s*;\s*/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  /*
-   * Quando a empresa separa responsabilidades, requisitos ou benefícios
-   * com ponto e vírgula, mostramos como lista.
-   */
-  if (items.length >= 3) {
-    return (
-      <ul className="mt-4 space-y-2.5">
-        {items.map((item, index) => (
-          <li
-            key={`${item}-${index}`}
-            className="flex gap-3 text-sm leading-7 text-muted-foreground"
-          >
-            <span
-              className="mt-[11px] size-1.5 shrink-0 rounded-full bg-brand"
-              aria-hidden="true"
-            />
-
-            <span>{item}</span>
-          </li>
-        ))}
-      </ul>
-    );
-  }
-
-  return <p className="mt-3 text-sm leading-7 text-muted-foreground">{content}</p>;
-}
-
-function JobDescription({ description }: { description: string }) {
-  const sections = parseDescription(description);
-
-  return (
-    <div className="space-y-8">
-      {sections.map((section, index) => (
-        <section key={`${section.title}-${index}`}>
-          <h2 className="text-lg font-bold text-foreground">{section.title}</h2>
-
-          <DescriptionContent content={section.content} />
-        </section>
-      ))}
-    </div>
-  );
+  return value == null ? null : formatter.format(value);
 }
 
 function JobDetailPage() {
-  const { job } = Route.useLoaderData() as {
-    job: Job;
-  };
-
-  const skills = job.skills ?? [];
+  const { job } = Route.useLoaderData();
+  const salary = formatSalary(job);
 
   return (
     <PageShell>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
-        <Link
-          to="/vagas"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-brand"
-        >
-          <ArrowLeft className="size-4" aria-hidden="true" />
+      <Button asChild variant="ghost" className="-ml-3 mb-5">
+        <Link to="/vagas">
+          <ArrowLeft className="mr-2 size-4" aria-hidden="true" />
           Voltar para as vagas
         </Link>
+      </Button>
 
-        <article className="mt-4 rounded-2xl border border-border bg-card p-6 shadow-card sm:p-8">
-          <span className="inline-flex rounded-full bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand">
-            via {SOURCE_LABELS[job.source]}
-          </span>
+      <article className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-brand">{SOURCE_LABELS[job.source]}</p>
 
-          <h1 className="mt-3 text-2xl font-extrabold leading-tight tracking-tight text-foreground sm:text-3xl">
-            {job.title}
-          </h1>
+            <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
+              {job.title}
+            </h1>
 
-          <p className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <Building2 className="size-4" aria-hidden="true" />
-              {job.company}
-            </span>
+            <p className="mt-2 text-base font-medium text-foreground">{job.company}</p>
+          </div>
 
-            <span className="inline-flex items-center gap-1.5">
-              <MapPin className="size-4" aria-hidden="true" />
-              {job.locationText}
-            </span>
+          <Button asChild>
+            <a href={job.applicationUrl} target="_blank" rel="noopener noreferrer">
+              Ver vaga original
+              <ExternalLink className="ml-2 size-4" aria-hidden="true" />
+            </a>
+          </Button>
+        </div>
 
-            <span className="inline-flex items-center gap-1.5">
-              <CalendarDays className="size-4" aria-hidden="true" />
-              {relativeDate(job.publishedAt)}
-            </span>
+        <div className="mt-8 grid gap-5 border-t border-border pt-6 sm:grid-cols-2">
+          <InfoItem icon={Building2} label="Empresa" value={job.company} />
+
+          <InfoItem icon={MapPin} label="Localização" value={job.locationText} />
+
+          <InfoItem
+            icon={BriefcaseBusiness}
+            label="Modalidade"
+            value={WORKPLACE_LABELS[job.workplaceType]}
+          />
+
+          <InfoItem
+            icon={BriefcaseBusiness}
+            label="Senioridade"
+            value={SENIORITY_LABELS[job.seniority]}
+          />
+
+          <InfoItem
+            icon={BriefcaseBusiness}
+            label="Contrato"
+            value={CONTRACT_LABELS[job.contractType]}
+          />
+
+          <InfoItem icon={CalendarDays} label="Publicação" value={relativeDate(job.publishedAt)} />
+
+          {salary && <InfoItem icon={Coins} label="Remuneração" value={salary} />}
+        </div>
+
+        <div className="mt-8 border-t border-border pt-6">
+          <h2 className="text-lg font-bold text-foreground">Sobre esta oportunidade</h2>
+
+          <p className="mt-3 text-sm leading-7 text-muted-foreground">
+            Consulte a descrição completa, os requisitos, benefícios e demais condições diretamente
+            na página oficial da vaga.
           </p>
 
-          <div className="mt-6">
-            <Button asChild size="lg">
-              <a href={job.applicationUrl} target="_blank" rel="noopener noreferrer">
-                Candidatar-se no site da empresa
-                <ExternalLink className="size-4" aria-hidden="true" />
-              </a>
-            </Button>
+          {job.skills && job.skills.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-foreground">
+                Tecnologias e competências identificadas
+              </h3>
 
-            <p className="mt-2 text-xs text-muted-foreground">
-              O link abre em uma nova aba, direto na página original da vaga.
-            </p>
-          </div>
-
-          <div className="mt-10 grid gap-10 md:grid-cols-[minmax(0,1fr)_280px]">
-            <div className="min-w-0">
-              <JobDescription description={job.description} />
-
-              {skills.length > 0 && (
-                <section className="mt-10">
-                  <h2 className="text-lg font-bold text-foreground">Competências</h2>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {skills.map((skill) => (
-                      <span
-                        key={skill}
-                        className="rounded-full border border-border bg-secondary px-3 py-1.5 text-xs font-semibold text-foreground"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              <section className="mt-10 rounded-xl border border-border bg-secondary/30 p-4">
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  As informações desta vaga são obtidas da plataforma de origem. Consulte sempre o
-                  anúncio original antes de concluir sua candidatura.
-                </p>
-              </section>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {job.skills.map((skill) => (
+                  <span
+                    key={skill}
+                    className="rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
             </div>
+          )}
+        </div>
 
-            <aside className="h-fit rounded-xl border border-border bg-secondary/40 p-4 md:sticky md:top-24">
-              <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
-                <BriefcaseBusiness className="size-4" aria-hidden="true" />
-                Resumo
-              </h2>
+        <div className="mt-8 rounded-xl border border-border bg-background p-4">
+          <p className="text-xs leading-5 text-muted-foreground">
+            O Radar Vagas é um projeto independente e não participa do processo seletivo. A
+            candidatura e todas as informações oficiais da oportunidade são de responsabilidade da
+            empresa e da plataforma de origem.
+          </p>
+        </div>
 
-              <dl className="mt-2">
-                <InfoRow label="Modalidade" value={WORKPLACE_LABELS[job.workplaceType]} />
-
-                <InfoRow label="Nível" value={SENIORITY_LABELS[job.seniority]} />
-
-                <InfoRow label="Contrato" value={CONTRACT_LABELS[job.contractType]} />
-
-                <InfoRow label="Categoria" value={job.category} />
-
-                <InfoRow label="Local" value={job.locationText} />
-
-                <InfoRow label="País" value={job.country || "Não informado"} />
-
-                <InfoRow
-                  label="Prazo para candidatura"
-                  value={formatDeadline(job.applicationDeadline)}
-                />
-
-                <InfoRow label="Fonte" value={SOURCE_LABELS[job.source]} />
-              </dl>
-            </aside>
-          </div>
-        </article>
-      </main>
+        <div className="mt-6">
+          <Button asChild>
+            <a href={job.applicationUrl} target="_blank" rel="noopener noreferrer">
+              Acessar página oficial da vaga
+              <ExternalLink className="ml-2 size-4" aria-hidden="true" />
+            </a>
+          </Button>
+        </div>
+      </article>
     </PageShell>
   );
 }

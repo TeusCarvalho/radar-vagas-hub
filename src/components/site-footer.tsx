@@ -1,15 +1,47 @@
+import { Link } from "@tanstack/react-router";
+
 export function SiteFooter() {
   return (
-    <footer className="mt-16 border-t border-border bg-surface">
-      <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+    <footer className="border-t border-border bg-card">
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
         <p className="text-sm font-semibold text-foreground">Radar Vagas</p>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          O Radar Vagas apenas agrega oportunidades publicadas em plataformas de recrutamento como Gupy e
-          InHire. Não somos responsáveis pelos processos seletivos: a candidatura acontece sempre no site
-          original da empresa. Nunca solicitamos pagamento para candidatura.
+
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+          O Radar Vagas é um projeto independente que organiza oportunidades públicas de emprego
+          encontradas em diferentes plataformas de recrutamento. A candidatura acontece sempre na
+          página oficial da vaga. Não participamos dos processos seletivos e nunca solicitamos
+          pagamento para candidatura.
         </p>
-        <p className="mt-6 text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Radar Vagas · Hub de pesquisa de vagas
+
+        <nav className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+          <Link to="/sobre" className="text-muted-foreground hover:text-foreground">
+            Sobre
+          </Link>
+
+          <Link to="/termos" className="text-muted-foreground hover:text-foreground">
+            Termos de Uso
+          </Link>
+
+          <Link to="/privacidade" className="text-muted-foreground hover:text-foreground">
+            Privacidade
+          </Link>
+
+          <a
+            href="https://github.com/TeusCarvalho/radar-vagas-hub"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            GitHub
+          </a>
+        </nav>
+
+        <p className="mt-5 text-xs text-muted-foreground">
+          As vagas, marcas e conteúdos pertencem aos seus respectivos titulares.
+        </p>
+
+        <p className="mt-3 text-xs text-muted-foreground">
+          © {new Date().getFullYear()} Radar Vagas · Hub gratuito de pesquisa de vagas
         </p>
       </div>
     </footer>

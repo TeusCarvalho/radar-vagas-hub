@@ -1,6 +1,6 @@
-export type JobSource = "gupy" | "inhire";
+export type JobSource = "gupy" | "inhire" | "greenhouse" | "lever" | "ashby";
 
-export type WorkplaceType = "remoto" | "hibrido" | "presencial" | "nao_informado";
+export type WorkplaceType = "remote" | "hybrid" | "onsite" | "unknown";
 
 export type ContractType = "clt" | "pj" | "estagio" | "temporario" | "nao_informado";
 
@@ -11,45 +11,43 @@ export interface Job {
   id: string;
 
   source: JobSource;
-
   externalId: string;
 
   title: string;
-
   company: string;
-
   companyLogo?: string;
 
-  description: string;
-
-  requirements: string[];
-
-  city: string;
-
-  state: string;
-
-  country?: string;
-
-  locationText: string;
-
-  workplaceType: WorkplaceType;
-
-  contractType: ContractType;
-
+  category: string;
   seniority: Seniority;
 
-  category: string;
+  workplaceType: WorkplaceType;
+  sourceWorkplaceType?: string | null;
 
+  contractType: ContractType;
+  sourceContractType?: string | null;
+
+  locationText: string;
+  city: string;
+  state: string;
+  country?: string;
+
+  salaryMin?: number | null;
+  salaryMax?: number | null;
+  salaryCurrency?: string | null;
+  salaryInterval?: string | null;
+  salaryDescription?: string | null;
+
+  description: string;
+  requirements: string[];
   skills?: string[];
 
   applicationUrl: string;
-
   applicationDeadline?: string | null;
 
   publishedAt: string;
+  publishedAtSource?: string | null;
 
   firstSeenAt: string;
-
   lastSeenAt: string;
 
   active: boolean;
@@ -61,15 +59,12 @@ export interface JobQuery {
   q?: string;
 
   workplaceType?: WorkplaceType | "todos";
-
   seniority?: Seniority | "todos";
 
   state?: string;
-
   category?: string;
 
   contractType?: ContractType | "todos";
-
   source?: JobSource | "todos";
 
   sort?: SortOption;
@@ -81,10 +76,10 @@ export interface JobQueryResult {
 }
 
 export const WORKPLACE_LABELS: Record<WorkplaceType, string> = {
-  remoto: "Remoto",
-  hibrido: "Híbrido",
-  presencial: "Presencial",
-  nao_informado: "Não informado",
+  remote: "Remoto",
+  hybrid: "Híbrido",
+  onsite: "Presencial",
+  unknown: "Não informado",
 };
 
 export const CONTRACT_LABELS: Record<ContractType, string> = {
@@ -107,4 +102,7 @@ export const SENIORITY_LABELS: Record<Seniority, string> = {
 export const SOURCE_LABELS: Record<JobSource, string> = {
   gupy: "Gupy",
   inhire: "InHire",
+  greenhouse: "Greenhouse",
+  lever: "Lever",
+  ashby: "Ashby",
 };
