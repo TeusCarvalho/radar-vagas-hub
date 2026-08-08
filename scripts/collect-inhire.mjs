@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import {
   WINDOW_DAYS,
   parseDate,
@@ -18,11 +19,14 @@ const BOOTSTRAP_TENANTS_URL =
 
 const TENANTS_CACHE = path.join(__dirname, "inhire-tenants.json");
 const OUTPUT_FILE = path.join(__dirname, "inhire-results.json");
+const PUBLISHED_CACHE_FILE = path.join(process.cwd(), ".cache", "inhire-published-cache.json");
 
 const TENANT_CONCURRENCY = 10;
 const DETAIL_CONCURRENCY = 8;
 const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_RETRIES = 2;
+const PUBLISHED_CACHE_VERSION = 1;
+const PUBLISHED_CACHE_MAX_AGE_HOURS = Number(process.env.INHIRE_CACHE_MAX_AGE_HOURS ?? 168);
 
 const INHIRE_HEADERS = {
   Accept: "application/json",
@@ -394,6 +398,103 @@ function parseBrazilLocation(locationText, workplaceType) {
   };
 }
 
+function makePublishedCacheKey(slug, jobId) {
+  const normalizedSlug = String(slug ?? "")
+    .trim()
+    .toLowerCase();
+  const normalizedJobId = String(jobId ?? "").trim();
+
+  return normalizedSlug && normalizedJobId ? `${normalizedSlug}:${normalizedJobId}` : null;
+}
+
+function makeSummaryFingerprint(summary) {
+  if (!summary || typeof summary !== "object") {
+    return null;
+  }
+
+  return createHash("sha1").update(JSON.stringify(summary)).digest("hex");
+}
+
+function isCacheEntryFresh(entry) {
+  if (!entry?.checked_at) {
+    return false;
+  }
+
+  const checkedAt = parseDate(entry.checked_at);
+
+  if (!checkedAt) {
+    return false;
+  }
+
+  const maxAgeMs = PUBLISHED_CACHE_MAX_AGE_HOURS * 60 * 60 * 1000;
+  return Date.now() - checkedAt.getTime() <= maxAgeMs;
+}
+
+async function loadPublishedCache() {
+  try {
+    const raw = JSON.parse(await fs.readFile(PUBLISHED_CACHE_FILE, "utf8"));
+    const items = raw?.version === PUBLISHED_CACHE_VERSION ? raw.items : raw;
+
+    if (!items || typeof items !== "object" || Array.isArray(items)) {
+      return new Map();
+    }
+
+    const cache = new Map();
+
+    for (const [key, value] of Object.entries(items)) {
+      const publishedAt = firstString(typeof value === "string" ? value : value?.published_at);
+
+      if (!publishedAt || !parseDate(publishedAt)) {
+        continue;
+      }
+
+      cache.set(key, {
+        published_at: publishedAt,
+        summary_fingerprint:
+          typeof value === "object" ? firstString(value?.summary_fingerprint) : null,
+        checked_at: typeof value === "object" ? firstString(value?.checked_at) : null,
+      });
+    }
+
+    console.log(`Cache de published_at carregado: ${cache.size} entradas`);
+    return cache;
+  } catch {
+    console.log("Cache de published_at não encontrado. Esta execução fará o aquecimento do cache.");
+    return new Map();
+  }
+}
+
+async function savePublishedCache(cache, activeKeys) {
+  const items = {};
+
+  for (const key of activeKeys) {
+    const entry = cache.get(key);
+
+    if (!entry?.published_at || !parseDate(entry.published_at)) {
+      continue;
+    }
+
+    items[key] = entry;
+  }
+
+  await fs.mkdir(path.dirname(PUBLISHED_CACHE_FILE), { recursive: true });
+  await fs.writeFile(
+    PUBLISHED_CACHE_FILE,
+    JSON.stringify(
+      {
+        version: PUBLISHED_CACHE_VERSION,
+        generated_at: new Date().toISOString(),
+        items,
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  console.log(`Cache de published_at salvo: ${Object.keys(items).length} entradas`);
+}
+
 function makeHeaders(slug) {
   return {
     ...INHIRE_HEADERS,
@@ -558,7 +659,7 @@ function isPublished(job) {
   return !status || status === "published" || status === "publicado";
 }
 
-function mapInHireJob({ tenant, summary, detail }) {
+function mapInHireJob({ tenant, summary, detail, cachedPublishedAt = null }) {
   const title =
     firstString(
       detail?.displayName,
@@ -619,7 +720,7 @@ function mapInHireJob({ tenant, summary, detail }) {
       summary?.deadline,
     ) ?? null;
 
-  const publishedAt =
+  const publishedAtFromApi =
     firstString(
       detail?.publishedAt,
       detail?.publishedDate,
@@ -627,8 +728,11 @@ function mapInHireJob({ tenant, summary, detail }) {
       detail?.createdAt,
       summary?.publishedAt,
       summary?.publishedDate,
+      summary?.publicationDate,
       summary?.createdAt,
     ) ?? null;
+
+  const publishedAt = publishedAtFromApi ?? cachedPublishedAt ?? null;
 
   return {
     source: "inhire",
@@ -657,7 +761,11 @@ function mapInHireJob({ tenant, summary, detail }) {
     salary_interval: null,
     salary_description: null,
     published_at: publishedAt,
-    published_at_source: publishedAt ? "inhire_publication_or_created" : null,
+    published_at_source: publishedAtFromApi
+      ? "inhire_publication_or_created"
+      : publishedAt
+        ? "inhire_published_cache"
+        : null,
     first_seen_at: null,
     last_seen_at: null,
     active: true,
@@ -720,6 +828,8 @@ async function main() {
   console.log("====================================");
 
   const tenantSeeds = await loadTenants();
+  const publishedCache = await loadPublishedCache();
+  const activeCacheKeys = new Set();
 
   let checked = 0;
   let tenantErrors = 0;
@@ -754,7 +864,11 @@ async function main() {
   const detailCandidates = [];
   let publicIndexCount = 0;
   let outsideWindowBySummary = 0;
+  let outsideWindowByCache = 0;
   let withoutDateInSummary = 0;
+  let cacheHits = 0;
+  let cacheMisses = 0;
+  let cacheExpiredOrChanged = 0;
 
   for (const tenant of tenants) {
     for (const job of tenant.jobs) {
@@ -770,6 +884,14 @@ async function main() {
 
       publicIndexCount += 1;
 
+      const jobId = String(firstValue(job?.jobId, job?.id) ?? "").trim();
+      const cacheKey = makePublishedCacheKey(tenant.slug, jobId);
+      const summaryFingerprint = makeSummaryFingerprint(job);
+
+      if (cacheKey) {
+        activeCacheKeys.add(cacheKey);
+      }
+
       const summaryPublishedAt = firstString(
         job?.publishedAt,
         job?.publishedDate,
@@ -777,18 +899,53 @@ async function main() {
         job?.createdAt,
       );
 
+      let cachedPublishedAt = null;
+
       if (summaryPublishedAt && parseDate(summaryPublishedAt)) {
+        if (cacheKey) {
+          publishedCache.set(cacheKey, {
+            published_at: summaryPublishedAt,
+            summary_fingerprint: summaryFingerprint,
+            checked_at: new Date().toISOString(),
+          });
+        }
+
         if (!isWithinWindow(summaryPublishedAt, WINDOW_DAYS)) {
           outsideWindowBySummary += 1;
           continue;
         }
       } else {
         withoutDateInSummary += 1;
+
+        const cachedEntry = cacheKey ? publishedCache.get(cacheKey) : null;
+        const sameSummary =
+          cachedEntry?.summary_fingerprint &&
+          summaryFingerprint &&
+          cachedEntry.summary_fingerprint === summaryFingerprint;
+
+        if (cachedEntry?.published_at && sameSummary && isCacheEntryFresh(cachedEntry)) {
+          cacheHits += 1;
+          cachedPublishedAt = cachedEntry.published_at;
+
+          if (!isWithinWindow(cachedPublishedAt, WINDOW_DAYS)) {
+            outsideWindowByCache += 1;
+            continue;
+          }
+        } else {
+          cacheMisses += 1;
+
+          if (cachedEntry) {
+            cacheExpiredOrChanged += 1;
+          }
+        }
       }
 
       detailCandidates.push({
         tenant,
         summary: job,
+        cacheKey,
+        summaryFingerprint,
+        cachedPublishedAt,
       });
     }
   }
@@ -797,7 +954,11 @@ async function main() {
   console.log(`Falhas ao validar tenants: ${tenantErrors}`);
   console.log(`Todas as vagas públicas encontradas no índice: ${publicIndexCount}`);
   console.log(`Fora da janela já pelo índice: ${outsideWindowBySummary}`);
-  console.log(`Sem data no índice e que exigem detalhe: ${withoutDateInSummary}`);
+  console.log(`Fora da janela usando cache confiável: ${outsideWindowByCache}`);
+  console.log(`Sem data no índice: ${withoutDateInSummary}`);
+  console.log(`Acertos no cache de data: ${cacheHits}`);
+  console.log(`Ausentes no cache de data: ${cacheMisses}`);
+  console.log(`Cache expirado ou resumo alterado: ${cacheExpiredOrChanged}`);
   console.log(`Candidatas a detalhe: ${detailCandidates.length}`);
   console.log("\nBuscando detalhes somente das candidatas...");
 
@@ -805,7 +966,7 @@ async function main() {
 
   const mappedJobs = await mapPool(
     detailCandidates,
-    async ({ tenant, summary }) => {
+    async ({ tenant, summary, cacheKey, summaryFingerprint, cachedPublishedAt }) => {
       const jobId = firstValue(summary?.jobId, summary?.id);
       let detail = null;
 
@@ -825,14 +986,32 @@ async function main() {
         console.log(`Detalhes processados: ${detailDone}/${detailCandidates.length}`);
       }
 
-      return mapInHireJob({
+      const mapped = mapInHireJob({
         tenant,
         summary,
         detail,
+        cachedPublishedAt,
       });
+
+      if (
+        cacheKey &&
+        mapped.published_at &&
+        parseDate(mapped.published_at) &&
+        mapped.published_at_source === "inhire_publication_or_created"
+      ) {
+        publishedCache.set(cacheKey, {
+          published_at: mapped.published_at,
+          summary_fingerprint: summaryFingerprint,
+          checked_at: new Date().toISOString(),
+        });
+      }
+
+      return mapped;
     },
     DETAIL_CONCURRENCY,
   );
+
+  await savePublishedCache(publishedCache, activeCacheKeys);
 
   const byId = new Map();
   let outsideWindowAfterDetail = 0;
@@ -893,7 +1072,10 @@ async function main() {
   console.log(`Tenants válidos agora: ${tenants.length}`);
   console.log(`Vagas públicas no índice: ${publicIndexCount}`);
   console.log(`Fora dos ${WINDOW_DAYS} dias pelo índice: ${outsideWindowBySummary}`);
+  console.log(`Fora dos ${WINDOW_DAYS} dias pelo cache: ${outsideWindowByCache}`);
   console.log(`Fora dos ${WINDOW_DAYS} dias após detalhe: ${outsideWindowAfterDetail}`);
+  console.log(`Detalhes realmente consultados: ${detailCandidates.length}`);
+  console.log(`Acertos no cache de published_at: ${cacheHits}`);
   console.log(`Sem published_at confiável: ${withoutPublishedDate}`);
   console.log(`Vagas únicas na janela: ${uniqueJobs.length}`);
   console.log(`Vagas válidas na janela: ${validJobs.length}`);

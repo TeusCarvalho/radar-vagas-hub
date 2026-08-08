@@ -28,6 +28,7 @@ jobs:
       NODE_ENV: production
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      INHIRE_CACHE_MAX_AGE_HOURS: "168"
 
     steps:
       - name: Checkout
@@ -59,6 +60,15 @@ jobs:
             exit 1
           fi
 
+      - name: Restaurar cache de published_at do InHire
+        id: inhire-published-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/inhire-published-cache.json
+          key: inhire-published-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            inhire-published-${{ runner.os }}-
+
       - name: Remover resultados antigos do checkout
         shell: bash
         run: |
@@ -75,6 +85,13 @@ jobs:
 
       - name: Coletar InHire
         run: node scripts/collect-inhire.mjs
+
+      - name: Salvar cache de published_at do InHire
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/inhire-published-cache.json
+          key: inhire-published-${{ runner.os }}-${{ github.run_id }}
 
       - name: Coletar Greenhouse
         run: node scripts/collect-greenhouse.mjs
@@ -141,4 +158,11 @@ jobs:
             echo "- Merge desta execução: $TOTAL vagas" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "- Merge desta execução: não concluído" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .cache/inhire-published-cache.json ]; then
+            CACHE_TOTAL=$(node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('./.cache/inhire-published-cache.json','utf8')); console.log(Object.keys(c.items ?? {}).length)")
+            echo "- Cache InHire: $CACHE_TOTAL datas conhecidas" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Cache InHire: não gerado" >> "$GITHUB_STEP_SUMMARY"
           fi
