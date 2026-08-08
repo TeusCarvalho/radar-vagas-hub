@@ -14,6 +14,9 @@ const WINDOW_DAYS = 15;
 
 const EXPECTED_SOURCES = ["gupy", "inhire", "greenhouse", "lever", "ashby"];
 
+const STATUS_TABLE = "radar_status";
+const STATUS_ROW_ID = "main";
+
 async function loadEnvFile(file) {
   try {
     const raw = await fs.readFile(file, "utf8");
@@ -216,6 +219,34 @@ function chunks(array, size) {
   return result;
 }
 
+async function saveSyncStatus(
+  supabase,
+  { syncStartedAt, syncFinishedAt, activeCount, catalogCount, sourceCounts, durationMs },
+) {
+  const statusPayload = {
+    id: STATUS_ROW_ID,
+    status: "success",
+    last_successful_sync: syncFinishedAt,
+    sync_started_at: syncStartedAt,
+    total_jobs: activeCount,
+    catalog_jobs: catalogCount,
+    source_counts: sourceCounts,
+    duration_ms: durationMs,
+    updated_at: syncFinishedAt,
+  };
+
+  const { error } = await supabase.from(STATUS_TABLE).upsert(statusPayload, {
+    onConflict: "id",
+    ignoreDuplicates: false,
+  });
+
+  if (error) {
+    throw new Error(
+      `Vagas sincronizadas, mas falhou ao registrar status em ${STATUS_TABLE}: ${error.message}`,
+    );
+  }
+}
+
 async function main() {
   await loadProjectEnv();
 
@@ -251,6 +282,8 @@ async function main() {
   });
 
   const syncStartedAt = new Date().toISOString();
+  const syncStartedMs = Date.now();
+
   const payload = jobs.map((job) => dbPayload(job, syncStartedAt));
   const batches = chunks(payload, BATCH_SIZE);
 
@@ -312,6 +345,19 @@ async function main() {
     throw new Error(`Carga concluída, mas falhou ao contar vagas: ${countError.message}`);
   }
 
+  const syncFinishedAt = new Date().toISOString();
+  const durationMs = Date.now() - syncStartedMs;
+
+  // Só registra a atualização depois que todo o sync terminou com sucesso.
+  await saveSyncStatus(supabase, {
+    syncStartedAt,
+    syncFinishedAt,
+    activeCount: activeCount ?? jobs.length,
+    catalogCount: jobs.length,
+    sourceCounts,
+    durationMs,
+  });
+
   console.log("");
   console.log("====================================");
   console.log("SYNC CONCLUÍDO");
@@ -319,6 +365,8 @@ async function main() {
   console.log(`Upserts processados: ${processed}`);
   console.log(`Vagas ativas no Supabase: ${activeCount ?? "não informado"}`);
   console.log(`Retenção: ${WINDOW_DAYS} dias`);
+  console.log(`Última atualização registrada: ${syncFinishedAt}`);
+  console.log(`Duração do sync: ${(durationMs / 1000).toFixed(1)}s`);
   console.log("====================================");
 }
 
