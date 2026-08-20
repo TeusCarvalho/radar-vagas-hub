@@ -28,7 +28,14 @@ jobs:
       NODE_ENV: production
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+
+      # InHire
       INHIRE_CACHE_MAX_AGE_HOURS: "168"
+
+      # InfoJobs
+      INFOJOBS_DETAIL_CACHE_MAX_AGE_HOURS: "168"
+      INFOJOBS_ENABLE_DETAIL_FALLBACK: "false"
+      INFOJOBS_STATE_CONCURRENCY: "2"
 
     steps:
       - name: Checkout
@@ -69,6 +76,15 @@ jobs:
           restore-keys: |
             inhire-published-${{ runner.os }}-
 
+      - name: Restaurar cache de detalhes do InfoJobs
+        id: infojobs-detail-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/infojobs-detail-cache.json
+          key: infojobs-detail-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            infojobs-detail-${{ runner.os }}-
+
       - name: Remover resultados antigos do checkout
         shell: bash
         run: |
@@ -77,6 +93,7 @@ jobs:
           rm -f scripts/greenhouse-results.json
           rm -f scripts/lever-results.json
           rm -f scripts/ashby-results.json
+          rm -f scripts/infojobs-results.json
           rm -f scripts/radar-jobs.json
           rm -f scripts/radar-jobs-report.json
 
@@ -102,6 +119,16 @@ jobs:
       - name: Coletar Ashby
         run: node scripts/collect-ashby.mjs
 
+      - name: Coletar InfoJobs
+        run: node scripts/collect-infojobs.mjs
+
+      - name: Salvar cache de detalhes do InfoJobs
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/infojobs-detail-cache.json
+          key: infojobs-detail-${{ runner.os }}-${{ github.run_id }}
+
       - name: Merge e deduplicação
         run: node scripts/merge-jobs.mjs
 
@@ -124,11 +151,23 @@ jobs:
           }
 
           if (jobs.length === 0) {
-            throw new Error("radar-jobs.json ficou vazio. Sync cancelado por segurança.");
+            throw new Error(
+              "radar-jobs.json ficou vazio. Sync cancelado por segurança.",
+            );
           }
 
-          const sources = new Set(jobs.map((job) => job.source));
-          const expected = ["gupy", "inhire", "greenhouse", "lever", "ashby"];
+          const sources = new Set(
+            jobs.map((job) => job.source),
+          );
+
+          const expected = [
+            "gupy",
+            "inhire",
+            "greenhouse",
+            "lever",
+            "ashby",
+            "infojobs",
+          ];
 
           for (const source of expected) {
             if (!sources.has(source)) {
@@ -138,8 +177,13 @@ jobs:
             }
           }
 
-          console.log(`Vagas prontas para sincronização: ${jobs.length}`);
-          console.log(`Fontes: ${[...sources].sort().join(", ")}`);
+          console.log(
+            `Vagas prontas para sincronização: ${jobs.length}`,
+          );
+
+          console.log(
+            `Fontes: ${[...sources].sort().join(", ")}`,
+          );
           NODE
 
       - name: Sincronizar Supabase
@@ -160,9 +204,23 @@ jobs:
             echo "- Merge desta execução: não concluído" >> "$GITHUB_STEP_SUMMARY"
           fi
 
+          if [ -f scripts/infojobs-results.json ]; then
+            INFOJOBS_TOTAL=$(node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('./scripts/infojobs-results.json','utf8')); console.log(j.length)")
+            echo "- InfoJobs: $INFOJOBS_TOTAL vagas" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- InfoJobs: não concluído" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
           if [ -f .cache/inhire-published-cache.json ]; then
             CACHE_TOTAL=$(node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('./.cache/inhire-published-cache.json','utf8')); console.log(Object.keys(c.items ?? {}).length)")
             echo "- Cache InHire: $CACHE_TOTAL datas conhecidas" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "- Cache InHire: não gerado" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .cache/infojobs-detail-cache.json ]; then
+            INFOJOBS_CACHE_TOTAL=$(node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('./.cache/infojobs-detail-cache.json','utf8')); console.log(Object.keys(c ?? {}).length)")
+            echo "- Cache InfoJobs: $INFOJOBS_CACHE_TOTAL registros" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Cache InfoJobs: não gerado" >> "$GITHUB_STEP_SUMMARY"
           fi

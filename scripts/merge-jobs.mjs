@@ -11,6 +11,7 @@ const INPUTS = [
   ["greenhouse", path.join(__dirname, "greenhouse-results.json")],
   ["lever", path.join(__dirname, "lever-results.json")],
   ["ashby", path.join(__dirname, "ashby-results.json")],
+  ["infojobs", path.join(__dirname, "infojobs-results.json")],
 ];
 
 const OUTPUT_FILE = path.join(__dirname, "radar-jobs.json");
@@ -22,6 +23,7 @@ const SOURCE_PRIORITY = {
   greenhouse: 3,
   ashby: 2,
   lever: 1,
+  infojobs: 1,
 };
 
 function normalizeText(value = "") {
@@ -74,6 +76,40 @@ function locationKey(job) {
   }
 
   return location || "unknown";
+}
+
+function isGenericCompany(value = "") {
+  const company = normalizeCompany(value);
+
+  return (
+    !company ||
+    company === "empresa nao informada" ||
+    company === "empresa confidencial" ||
+    company === "confidencial" ||
+    company === "nao informado"
+  );
+}
+
+function isUnknownLocationKey(value = "") {
+  const location = normalizeText(value);
+
+  return (
+    !location ||
+    location === "unknown" ||
+    location === "local nao informado" ||
+    location === "nao informado"
+  );
+}
+
+function companyTitleKey(job) {
+  const company = normalizeCompany(job.company);
+  const title = normalizeTitle(job.title);
+
+  if (isGenericCompany(job.company) || !title) {
+    return null;
+  }
+
+  return `${company}|${title}`;
 }
 
 function canonicalKey(job) {
@@ -249,16 +285,28 @@ async function main() {
   const internalDuplicates = all.length - afterInternal.length;
 
   // 2) Deduplicação conservadora entre plataformas.
-  // Só considera duplicada quando empresa + título + localização normalizados coincidem.
+  //
+  // Regra A:
+  // empresa + título + localização normalizados precisam coincidir.
+  //
+  // Regra B (fallback seguro):
+  // mesma empresa + mesmo título e apenas UMA localização concreta
+  // conhecida no grupo. Isso cobre casos em que uma fonte (ex.: InfoJobs)
+  // informa "Local não informado", sem deduplicar vagas homônimas de
+  // empresas diferentes ou vagas da mesma empresa em várias cidades.
+  //
+  // Nunca usamos apenas título ou título+localização sem empresa.
+
   const byCanonical = new Map();
   const duplicateGroups = [];
 
   for (const job of afterInternal) {
     const key = canonicalKey(job);
-
-    // Não deduplicamos chaves incompletas.
     const [company, title, location] = key.split("|");
-    if (!company || !title || !location || location === "unknown") {
+
+    // Empresa genérica/confidencial ou chave incompleta:
+    // não fazemos dedupe cross-source.
+    if (isGenericCompany(job.company) || !company || !title || isUnknownLocationKey(location)) {
       byCanonical.set(`${job.source}|${job.external_id}`, job);
       continue;
     }
@@ -280,6 +328,7 @@ async function main() {
     const discarded = chosen === existing ? job : existing;
 
     duplicateGroups.push({
+      reason: "company_title_location",
       canonical_key: key,
       kept: {
         source: chosen.source,
@@ -300,7 +349,115 @@ async function main() {
     byCanonical.set(key, chosen);
   }
 
-  const deduped = [...byCanonical.values()];
+  // 3) Fallback para localização ausente em uma das fontes.
+  //
+  // Agrupamos por empresa+título e só deduplicamos registros sem localização
+  // quando existe exatamente UMA localização concreta conhecida no grupo.
+  // Se a mesma empresa/título existir em duas ou mais cidades, o registro
+  // sem localização é preservado para evitar falso positivo.
+
+  const stage2 = [...byCanonical.values()];
+  const companyTitleGroups = new Map();
+
+  for (const job of stage2) {
+    const key = companyTitleKey(job);
+    if (!key) continue;
+
+    if (!companyTitleGroups.has(key)) {
+      companyTitleGroups.set(key, []);
+    }
+
+    companyTitleGroups.get(key).push(job);
+  }
+
+  const fallbackDiscarded = new Set();
+  const fallbackReplacement = new Map();
+
+  for (const [key, jobs] of companyTitleGroups) {
+    const sources = new Set(jobs.map((job) => job.source));
+    if (sources.size < 2) continue;
+
+    const knownLocationJobs = jobs.filter((job) => !isUnknownLocationKey(locationKey(job)));
+
+    const unknownLocationJobs = jobs.filter((job) => isUnknownLocationKey(locationKey(job)));
+
+    if (knownLocationJobs.length === 0 || unknownLocationJobs.length === 0) {
+      continue;
+    }
+
+    const concreteLocations = new Set(knownLocationJobs.map((job) => locationKey(job)));
+
+    // Ambíguo: mesma empresa+título existe em mais de uma localização.
+    if (concreteLocations.size !== 1) {
+      continue;
+    }
+
+    let representative = knownLocationJobs[0];
+
+    for (const candidate of knownLocationJobs.slice(1)) {
+      if (candidate.source === representative.source) continue;
+      representative = chooseBest(representative, candidate);
+    }
+
+    for (const unknown of unknownLocationJobs) {
+      if (unknown.source === representative.source) {
+        continue;
+      }
+
+      const chosen = chooseBest(representative, unknown);
+      const discarded = chosen === representative ? unknown : representative;
+
+      duplicateGroups.push({
+        reason: "company_title_single_known_location",
+        canonical_key: `${key}|${locationKey(representative)}`,
+        kept: {
+          source: chosen.source,
+          external_id: chosen.external_id,
+          title: chosen.title,
+          company: chosen.company,
+          application_url: chosen.application_url,
+        },
+        discarded: {
+          source: discarded.source,
+          external_id: discarded.external_id,
+          title: discarded.title,
+          company: discarded.company,
+          application_url: discarded.application_url,
+        },
+      });
+
+      fallbackDiscarded.add(`${discarded.source}|${discarded.external_id}`);
+
+      representative = chosen;
+    }
+
+    fallbackReplacement.set(key, representative);
+  }
+
+  const byFallback = new Map();
+
+  for (const job of stage2) {
+    const identity = `${job.source}|${job.external_id}`;
+
+    if (fallbackDiscarded.has(identity)) {
+      continue;
+    }
+
+    const key = companyTitleKey(job);
+    const replacement = key ? fallbackReplacement.get(key) : null;
+
+    if (replacement && identity !== `${replacement.source}|${replacement.external_id}`) {
+      // Mantém registros conhecidos adicionais da mesma fonte/local quando
+      // não foram explicitamente descartados.
+      byFallback.set(identity, job);
+      continue;
+    }
+
+    byFallback.set(identity, job);
+  }
+
+  const deduped = [...byFallback.values()];
+
   const publicJobs = [];
   const invalidJobs = [];
 
