@@ -478,6 +478,15 @@ async function getActiveGupyCount(supabase) {
 }
 
 async function main() {
+  if (!process.argv.includes("--apply")) {
+    console.error(
+      "Importação LEGADA bloqueada por padrão. " +
+      "Usar o pipeline oficial scripts/merge-jobs.mjs + scripts/sync-supabase.mjs. " +
+      "Se houver aprovação expressa para a rota antiga, executar com --apply e backup validado.",
+    );
+    process.exitCode = 1;
+    return;
+  }
   console.log("====================================");
 
   console.log("Radar Vagas - Importação Gupy");
