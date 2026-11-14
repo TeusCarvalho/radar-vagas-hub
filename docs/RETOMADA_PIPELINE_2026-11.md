@@ -29,3 +29,17 @@ a URL antiga `employability-portal.gupy.io/api/v1/jobs` deixou de atender.
 **Atenção:** `sync-supabase.mjs --apply` ainda executa atualização em lote,
 desativação de registros ausentes e exclusão física por janela de 15 dias.
 Não executar para validar apenas o endpoint.
+
+## Validação InHire (14/11/2026)
+
+Na primeira coleta local, foram consultadas 8.725 vagas do índice, mas a fonte
+utilizava a janela compartilhada de apenas 7 dias. Foram obtidas 685 vagas
+válidas nessa janela e 24 tenants apresentaram HTTP 404. O cache de datas
+`published_at` foi aquecido com 8.725 entradas.
+
+A constante `WINDOW_DAYS` em `scripts/collector-standard.mjs` foi alinhada
+para 15 dias (impacta InHire e InfoJobs). É necessário refazer a coleta InHire
+após atualizar a branch local, aproveitar o cache disponível e validar o novo
+volume antes de qualquer sincronização. Os 24 tenants que falharam precisam
+ser revisados separadamente, sem inventar datas. A listagem do InfoJobs utiliza
+um filtro de antiguidade próprio da plataforma e exige auditoria de cobertura.
