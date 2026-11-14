@@ -12,7 +12,7 @@ const INPUT_FILE = path.join(__dirname, "radar-jobs.json");
 const BATCH_SIZE = 400;
 const WINDOW_DAYS = 15;
 
-const EXPECTED_SOURCES = ["gupy", "inhire", "greenhouse", "lever", "ashby"];
+const EXPECTED_SOURCES = ["gupy", "inhire", "greenhouse", "lever", "ashby", "infojobs"];
 
 const STATUS_TABLE = "radar_status";
 const STATUS_ROW_ID = "main";
