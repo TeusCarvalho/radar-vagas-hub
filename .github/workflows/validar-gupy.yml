@@ -21,11 +21,14 @@ jobs:
           node-version: "24"
       - name: Verificar sintaxe
         run: |
+          node --check scripts/collector-standard.mjs
+          node --check scripts/collect-inhire.mjs
+          node --check scripts/collect-infojobs.mjs
           node --check scripts/collect-gupy.mjs
           node --check scripts/gupy-api.mjs
           node --check scripts/sync-supabase.mjs
           node --check scripts/merge-jobs.mjs
       - name: Testes unitários do contrato
-        run: node --test scripts/tests/gupy-api.test.mjs
+        run: node --test scripts/tests/*.test.mjs
       - name: Smoke test HTTP do portal Gupy
         run: node scripts/smoke-gupy.mjs
