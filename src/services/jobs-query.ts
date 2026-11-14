@@ -46,7 +46,7 @@ export function searchOrFilter(terms: string[]): string | null {
   const alternatives = (term: string) =>
     columns.map((column) => `${column}.ilike.%${term}%`).join(",");
 
-  if (terms.length === 1) return alternatives(terms[0]);
+  if (terms.length === 1) return alternatives(terms[0]!);
 
   // .or('and(or(...),or(...))') agrupa alternativas por token e exige todos.
   return `and(${terms.map((term) => `or(${alternatives(term)})`).join(",")})`;
