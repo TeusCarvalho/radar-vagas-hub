@@ -144,12 +144,12 @@ node scripts/sync-supabase.mjs --apply
 **Segurança operacional atual:**
 
 - `--apply` realiza upsert em lotes e **não desativa vagas ausentes nem exclui históricos por padrão**.
-- `--deactivate-absent` é uma decisão operacional separada, para desativar as vagas não observadas.
-- `--purge-expired` exige `--deactivate-absent` e habilita exclusão física após 15 dias; **não utilizar sem backup e plano específico**.
+- `--deactivate-absent` é uma decisão operacional separada, para desativar as vagas não observadas; exige também `RADAR_ALLOW_DESTRUCTIVE_SYNC=YES_I_HAVE_A_VERIFIED_BACKUP`.
+- `--purge-expired` exige `--deactivate-absent` e a confirmação ambiental acima, podendo excluir registros com mais de 15 dias. **Não utilizar sem backup e plano específico**.
 - Não há transação global para todos os lotes: falhas intermediárias podem deixar uma carga parcial.
 - O GitHub Actions agenda coletas para **08h e 18h de Brasília**, mas a execução agendada e a gravação estão **bloqueadas por padrão**. Somente habilitar a variável de repositório `RADAR_ENABLE_PRODUCTION_SYNC=true` após aprovação do fluxo automático e configuração dos secrets.
 
-Guia: [Preparação de produção, backup e recuperação](docs/PREPARACAO_SUPABASE_PRODUCAO.md) e [histórico da recuperação](docs/RETOMADA_PIPELINE_2026-11.md).
+Guias: [auditoria de segurança e ações pendentes](docs/AUDITORIA_SEGURANCA_2026-11-14.md), [preparação de produção, backup e recuperação](docs/PREPARACAO_SUPABASE_PRODUCAO.md) e [histórico da recuperação](docs/RETOMADA_PIPELINE_2026-11.md).
 
 ## Qualidade, build e publicação
 
