@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "scripts/**"
+      - "src/**"
+      - "wrangler.jsonc"
       - ".github/workflows/**"
       - "package.json"
       - "package-lock.json"
@@ -100,3 +102,6 @@ jobs:
         run: npx tsc --noEmit
       - name: Compilar frontend
         run: npm run build
+
+      - name: Verificar empacotamento Cloudflare sem publicar
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/radar-cloudflare-dry-run
