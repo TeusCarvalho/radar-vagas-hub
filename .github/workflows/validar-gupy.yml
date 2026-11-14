@@ -37,7 +37,7 @@ jobs:
       - name: Instalar dependências do frontend
         # O repositório ainda não possui package-lock.json versionado;
         # npm ci só poderá substituir npm install após gerar esse lockfile.
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Auditar dependências npm (diagnóstico)
         shell: bash
         run: |
