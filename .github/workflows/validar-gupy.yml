@@ -21,11 +21,16 @@ jobs:
           node-version: "24"
       - name: Verificar sintaxe
         run: |
+          node --check scripts/catalog-policy.mjs
           node --check scripts/collect-gupy.mjs
           node --check scripts/gupy-api.mjs
           node --check scripts/sync-supabase.mjs
           node --check scripts/merge-jobs.mjs
       - name: Testes unitários do contrato
-        run: node --test scripts/tests/gupy-api.test.mjs
+        run: node --test scripts/tests/*.test.mjs
       - name: Smoke test HTTP do portal Gupy
         run: node scripts/smoke-gupy.mjs
+      - name: Instalar dependências do frontend
+        run: npm ci
+      - name: Compilar frontend
+        run: npm run build
