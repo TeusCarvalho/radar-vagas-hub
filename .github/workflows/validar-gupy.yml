@@ -5,6 +5,8 @@ on:
     paths:
       - "scripts/**"
       - ".github/workflows/**"
+      - "package.json"
+      - "package-lock.json"
   workflow_dispatch:
 
 permissions:
@@ -36,6 +38,62 @@ jobs:
         # O repositório ainda não possui package-lock.json versionado;
         # npm ci só poderá substituir npm install após gerar esse lockfile.
         run: npm install --no-audit --no-fund
+      - name: Auditar dependências npm (diagnóstico)
+        shell: bash
+        run: |
+          # npm audit retorna código !=0 quando detecta vulnerabilidades.
+          # Primeiro coletamos evidências por escopo; a remediação é uma etapa
+          # separada e revisada, sem atualizações automáticas de pacotes.
+          npm audit --json > /tmp/radar-audit-all.json || true
+          npm audit --omit=dev --json > /tmp/radar-audit-runtime.json || true
+
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+
+          const scopes = [
+            ["Todas as dependências", "/tmp/radar-audit-all.json"],
+            ["Somente runtime (omit=dev)", "/tmp/radar-audit-runtime.json"],
+          ];
+
+          for (const [scope, file] of scopes) {
+            let report;
+            try {
+              report = JSON.parse(fs.readFileSync(file, "utf8"));
+            } catch (error) {
+              throw new Error("npm audit sem JSON válido em " + scope + ": " + error.message);
+            }
+
+            if (report.error) throw new Error("npm audit falhou em " + scope + ": " + JSON.stringify(report.error));
+
+            const severities = report.metadata?.vulnerabilities ?? {};
+            const vulnerabilities = Object.entries(report.vulnerabilities ?? {});
+
+            console.log("=== npm audit: " + scope + " ===");
+            console.log("Resumo por gravidade:", JSON.stringify(severities));
+            console.log("Pacotes afetados:");
+            for (const [name, data] of vulnerabilities) {
+              const via = (data.via ?? []).map((v) =>
+                typeof v === "string" ? v : (v.name + " / " + v.title)
+              ).join(" | ");
+              const fix = data.fixAvailable === false
+                ? "sem correção sugerida"
+                : data.fixAvailable === true
+                  ? "fix disponível"
+                  : JSON.stringify(data.fixAvailable);
+              console.log(" - " + name + " | " + data.severity +
+                " | direto=" + Boolean(data.isDirect) +
+                " | via=" + via + " | " + fix);
+            }
+
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+              "### " + scope + "\n" +
+              "Vulnerabilidades: " + JSON.stringify(severities) +
+              "\nPacotes afetados: " + vulnerabilities.map(([name]) => "\x60" + name + "\x60").join(", ") +
+              "\n\n"
+            );
+          }
+          NODE
+
       - name: Verificar tipos TypeScript
         run: npx tsc --noEmit
       - name: Compilar frontend
