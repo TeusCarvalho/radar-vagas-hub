@@ -12,7 +12,7 @@ const PAGE_SIZE = 100;
 const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_RETRIES = 2;
 const PAGE_DELAY_MS = 300;
-const WINDOW_DAYS = 15;
+const WINDOW_DAYS = 7;
 
 const MAX_OFFSET = 9_900;
 
