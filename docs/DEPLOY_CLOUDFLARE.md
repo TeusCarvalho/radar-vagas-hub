@@ -56,3 +56,34 @@ Referências oficiais:
 - https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/
 - https://developers.cloudflare.com/workers/ci-cd/builds/configuration/
 - https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/
+
+## Plano alternativo: publicar com GitHub Actions (sem depender do Workers Builds nativo)
+
+Caso o check `Workers Builds: teuscarvalho-radar-vagas-hub` continue falhando,
+o repositório possui `.github/workflows/deploy-cloudflare.yml` para fazer
+`npm ci`, testar, compilar e publicar diretamente no **Worker existente**.
+
+### Configuração necessária uma única vez
+
+1. No Cloudflare, gerar um API Token com escopo mínimo para implantar Workers
+   neste projeto; não fornecer o token por mensagem ou commit.
+2. No GitHub, em **Settings → Secrets and variables → Actions → New repository
+   secret**, cadastrar:
+   - `CLOUDFLARE_API_TOKEN` (valor secreto, somente no GitHub);
+   - `CLOUDFLARE_ACCOUNT_ID` (ID da conta, somente no GitHub).
+3. O workflow está disponível no menu **Actions → Publicar Radar Vagas no
+   Cloudflare** quando for integrado à `main`.
+4. Acionar manualmente **Run workflow → main**. A execução só chega à
+   implantação depois dos testes, auditoria de runtime, build e dry-run.
+5. O workflow verifica HTTP 200 em `/` e `/vagas` após a implantação.
+
+O deploy automático desse workflow em novos commits da `main` só ocorrerá
+quando a variável `RADAR_ENABLE_GITHUB_DEPLOY` for configurada para `true`.
+Por padrão não há publicação automática **via GitHub Actions**; o Worker
+conectado ao GitHub pode continuar tentando builds nativos. Evitar duas
+automações de produção simultâneas: escolher apenas um método quando
+ambos estiverem funcionando.
+
+**Nunca configurar** `SUPABASE_SECRET_KEY` no Cloudflare para este site
+público. A aplicação usa apenas a chave pública `VITE_SUPABASE_PUBLISHABLE_KEY`,
+já prevista em `.env.production` no build.
