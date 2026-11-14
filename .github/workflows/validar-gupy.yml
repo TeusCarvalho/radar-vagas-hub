@@ -30,14 +30,13 @@ jobs:
           node --check scripts/gupy-api.mjs
           node --check scripts/sync-supabase.mjs
           node --check scripts/merge-jobs.mjs
+      - name: Instalar dependências pelo lockfile
+        run: npm ci --no-audit --no-fund
+
       - name: Testes unitários do contrato
         run: node --test scripts/tests/*.test.mjs
       - name: Smoke test HTTP do portal Gupy
         run: node scripts/smoke-gupy.mjs
-      - name: Instalar dependências do frontend
-        # O repositório ainda não possui package-lock.json versionado;
-        # npm ci só poderá substituir npm install após gerar esse lockfile.
-        run: npm ci --no-audit --no-fund
       - name: Auditar dependências npm (diagnóstico)
         shell: bash
         run: |
