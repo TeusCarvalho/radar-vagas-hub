@@ -209,7 +209,7 @@ function rowToJob(row: JobRow): Job {
 
     state: row.state ?? "",
 
-    country: row.country ?? undefined,
+    ...(row.country ? { country: row.country } : {}),
 
     locationText,
 
@@ -295,7 +295,7 @@ export const supabaseJobsRepository: JobsRepository = {
     }
 
     return {
-      jobs: ((data ?? []) as JobRow[]).map(rowToJob),
+      jobs: ((data ?? []) as unknown as JobRow[]).map(rowToJob),
       total: count ?? 0,
     };
   },
@@ -319,7 +319,7 @@ export const supabaseJobsRepository: JobsRepository = {
     if (error) {
       throw new Error("Falha ao carregar detalhe da vaga: " + error.message);
     }
-    return data ? rowToJob(data as JobRow) : null;
+    return data ? rowToJob(data as unknown as JobRow) : null;
   },
 
   async listFacets() {
