@@ -1,450 +1,175 @@
-Radar Vagas
+# Radar Vagas Hub
 
-Hub gratuito e independente para pesquisa de vagas públicas de emprego em múltiplas plataformas de recrutamento.
+**Hub público e independente de vagas de emprego** de múltiplas plataformas de recrutamento, com busca, filtros e direcionamento para a candidatura original.
 
-Status: Beta públicoProdução: https://teuscarvalho-radar-vagas-hub.teuscarvalho.workers.dev
+- **Site atualmente publicado:** https://teuscarvalho-radar-vagas-hub.teuscarvalho.workers.dev
+- **Stack:** React, TypeScript, TanStack Router/Query, Vite, Node.js, Supabase/PostgreSQL e Cloudflare Workers
+- **Status do código de recuperação:** [PR #1 em rascunho](https://github.com/TeusCarvalho/radar-vagas-hub/pull/1). A versão pública ainda precisa receber e validar o novo frontend.
 
-Sobre o projeto
+> O Radar Vagas é um agregador, não uma plataforma de candidatura nem uma fonte oficial das empresas. Confirme sempre a disponibilidade da vaga e suas condições no anúncio original.
 
-O Radar Vagas é um projeto de engenharia de dados e desenvolvimento web criado para agregar, normalizar e organizar oportunidades públicas de emprego em um único catálogo.
+## Fontes integradas
 
-A aplicação integra diferentes ATS (Applicant Tracking Systems), transforma schemas heterogêneos em um modelo canônico e disponibiliza as vagas em uma interface com busca e filtros.
+O pipeline consulta **seis fontes**:
 
-A candidatura não acontece no Radar Vagas. O usuário é direcionado para a página oficial da oportunidade.
+| Fonte | Coletor |
+|---|---|
+| Gupy | `scripts/collect-gupy.mjs` |
+| InHire | `scripts/collect-inhire.mjs` |
+| Greenhouse | `scripts/collect-greenhouse.mjs` |
+| Lever | `scripts/collect-lever.mjs` |
+| Ashby | `scripts/collect-ashby.mjs` |
+| InfoJobs | `scripts/collect-infojobs.mjs` |
 
-Fontes integradas
+Cada fonte transforma os dados de origem para um formato comum. Datas de publicação ausentes, futuras ou de procedência não confiável não são inventadas e podem causar a exclusão da vaga do catálogo.
 
-Atualmente o Radar Vagas integra:
+O InfoJobs pode não identificar a empresa de algumas vagas. Nesses casos o catálogo exibe **“Empresa confidencial”** como rótulo neutro para empresa não identificada — isso não comprova sigilo confirmado pelo anunciante.
 
-Gupy
+## Política de publicação
 
-InHire
+O catálogo trabalha com uma **janela móvel de sete dias**, aplicada nas seis fontes, no merge e na consulta pública. O prazo de publicação não comprova que a candidatura permanece aberta.
 
-Greenhouse
+- Apenas vagas com data de publicação válida e verificável entram no catálogo.
+- Nenhuma data ausente é substituída pela data da coleta.
+- Os dados são deduplicados por `(source, external_id)` dentro de cada fonte.
+- Entre plataformas, a deduplicação é **conservadora**, considerando empresa, título e localização. Vagas com empresa não identificada não são deduplicadas entre plataformas apenas por similaridade.
+- A categoria profissional pode ser ajustada por regras explícitas do título, para reduzir classificações equivocadas (por exemplo, cargos de Vendas não devem ser classificados como Produto pela descrição).
 
-Lever
+## Última carga validada em produção
 
-Ashby
+**14/11/2026**, com backup lógico do esquema `public` testado em PostgreSQL 17 isolado antes da importação.
 
-Cada fonte possui um coletor próprio, responsável por adaptar os dados nativos para o schema interno do projeto.
+| Fonte | Vagas recentes e ativas |
+|---|---:|
+| Gupy | 10.014 |
+| InfoJobs | 9.865 |
+| InHire | 685 |
+| Greenhouse | 179 |
+| Ashby | 49 |
+| Lever | 26 |
+| **Total** | **20.818** |
 
-Pipeline
+Os seis coletores retornaram **21.880 registros brutos**, dos quais **20.818** cumpriram a política de sete dias; **1.062** foram excluídos por política. Foram corrigidas **207 categorias pelo título** e **5.101** vagas InfoJobs receberam o rótulo neutro de empresa não identificada.
 
-Gupy
-InHire
-Greenhouse
-Lever
-Ashby
-   ↓
-Coletores por fonte
-   ↓
-Normalização
-   ↓
-Janela móvel de 15 dias
-   ↓
-Validação
-   ↓
-Merge
-   ↓
-Deduplicação
-   ↓
-Supabase / PostgreSQL
-   ↓
-jobsRepository
-   ↓
-Frontend React
-   ↓
-Cloudflare Workers
+A primeira sincronização executou **53/53 lotes**, com **20.818 upserts**, sem exclusão física e sem desativação em massa. A consulta posterior confirmou **20.818 vagas recentes e ativas** na tabela `public.jobs`, **150.455 registros totais** (incluindo históricos), e status de sincronização `success`. Esses números são um retrato da execução, não uma contagem fixa.
 
-Regra de atualização
+## Arquitetura
 
-O catálogo principal trabalha com uma janela móvel de 15 dias.
+```text
+Gupy · InHire · Greenhouse · Lever · Ashby · InfoJobs
+                      ↓
+      Coletores e normalização por fonte
+                      ↓
+        Política de publicação: 7 dias
+                      ↓
+       Merge, qualidade e deduplicação
+                      ↓
+          Supabase / PostgreSQL
+                      ↓
+    jobsRepository (filtros e paginação SQL)
+                      ↓
+            Frontend React
+                      ↓
+           Cloudflare Workers
+```
 
-Somente vagas com data de publicação considerada confiável pela integração entram no conjunto principal.
+O frontend consulta o Supabase com **20 vagas por página**, filtro de modalidade, senioridade, UF, categoria, contrato e origem, além de pesquisa por cargo/empresa. A ordem implementada é por **publicação mais recente**; uma classificação real por relevância exigirá trabalho posterior no banco.
 
-O projeto não inventa datas ausentes.
+### Modelo e segurança
 
-Essa estratégia reduz vagas antigas, links obsoletos e ruído no catálogo.
+A tabela `public.jobs` mantém a chave natural única `(source, external_id)`, dados padronizados de modalidade (`remote`, `hybrid`, `onsite`, `unknown`), senioridade, contrato, localização, remuneração opcional, links e timestamps.
 
-Última execução validada
+- **RLS** permanece habilitada para restringir a exposição de registros públicos.
+- O navegador utiliza somente `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- A `SUPABASE_SECRET_KEY` é **exclusiva de execução administrativa**, nunca do bundle do frontend.
+- O Radar Vagas não republica a descrição integral da fonte; o candidato abre a vaga original para requisitos e inscrição.
 
-Execução realizada em 07/08/2026:
+## Instalação local
 
-Fonte
+Requisitos: Node.js compatível com o projeto e dependências npm.
 
-Vagas válidas
+```powershell
+git clone https://github.com/TeusCarvalho/radar-vagas-hub.git
+cd radar-vagas-hub
+npm.cmd install
+npm.cmd run dev
+```
 
-Gupy
+Para testar o código do PR #1 sem tocar na `main`:
 
-10.186
+```powershell
+git switch fix/recuperar-coleta-gupy-20261114
+git pull --ff-only origin fix/recuperar-coleta-gupy-20261114
+npm.cmd install
+npm.cmd run dev
+```
 
-InHire
+### Ambiente
 
-1.672
+Para consultar o Supabase no frontend local, configurar `.env.local`:
 
-Greenhouse
-
-432
-
-Lever
-
-75
-
-Ashby
-
-114
-
-Total
-
-12.479
-
-A quantidade de vagas é dinâmica e varia a cada execução do pipeline.
-
-Na execução acima:
-
-12.479 registros foram processados no merge;
-
-0 duplicidades intra-fonte foram encontradas;
-
-0 duplicidades cross-source foram removidas pelo critério conservador atual;
-
-0 registros ficaram inválidos após o merge;
-
-os 12.479 registros foram enviados ao Supabase.
-
-Normalização
-
-As diferentes plataformas utilizam nomenclaturas e schemas distintos.
-
-O Radar Vagas converte os dados para um contrato comum.
-
-Modalidade
-
-remote
-hybrid
-onsite
-unknown
-
-Senioridade
-
-estagio
-junior
-pleno
-senior
-especialista
-nao_informado
-
-Contrato
-
-clt
-pj
-estagio
-temporario
-nao_informado
-
-O projeto evita inferências agressivas.
-
-Por exemplo:
-
-FullTime != CLT
-Contract != PJ
-
-Quando não existe evidência suficiente, o valor normalizado permanece como nao_informado.
-
-Categorias profissionais
-
-O Radar Vagas não é limitado à área de tecnologia ou dados.
-
-O classificador atual contempla:
-
-Dados e Analytics
-
-Business Intelligence
-
-Tecnologia
-
-Produto
-
-Comercial e Vendas
-
-Marketing e Growth
-
-Financeiro e Contábil
-
-Recursos Humanos
-
-Logística e Operações
-
-Engenharia
-
-Saúde
-
-Administrativo
-
-Atendimento e Suporte
-
-Jurídico
-
-Compras e Suprimentos
-
-Educação
-
-Negócios e Estratégia
-
-Design
-
-Outros
-
-Deduplicação
-
-O pipeline possui duas camadas de deduplicação.
-
-Intra-fonte
-
-Chave:
-
-source + external_id
-
-Entre plataformas
-
-Critério conservador baseado na normalização exata de:
-
-empresa + título + localização
-
-Quando existe dúvida, o sistema prefere manter os dois registros para evitar remover vagas legítimas.
-
-Persistência
-
-O backend utiliza Supabase/PostgreSQL.
-
-A chave natural utilizada no upsert é:
-
-(source, external_id)
-
-Campos relevantes incluem:
-
-source
-external_id
-title
-company
-category
-seniority
-workplace_type
-contract_type
-location_text
-city
-state
-country
-salary_min
-salary_max
-salary_currency
-salary_interval
-application_url
-skills
-published_at
-first_seen_at
-last_seen_at
-active
-
-O banco utiliza Row Level Security (RLS).
-
-Usuários públicos possuem somente acesso de leitura às vagas ativas.
-
-As operações administrativas de sincronização utilizam chave secreta apenas no ambiente de execução dos scripts.
-
-Privacidade e conteúdo das vagas
-
-O Radar Vagas funciona como agregador e indexador.
-
-Por padrão, o sistema não republica a descrição completa da vaga.
-
-Na interface pública é exibida a mensagem:
-
-Consulte a descrição completa, os requisitos e as condições na página oficial da vaga.
-
-O botão de candidatura direciona o usuário para a fonte original.
-
-Tecnologias
-
-Frontend
-
-React
-
-TypeScript
-
-TanStack Router
-
-TanStack Query
-
-Vite
-
-Tailwind CSS
-
-Radix UI
-
-Dados e backend
-
-Node.js
-
-JavaScript ES Modules
-
-Supabase
-
-PostgreSQL
-
-Infraestrutura
-
-Cloudflare Workers
-
-Wrangler
-
-Nitro
-
-Estrutura principal
-
-radar-vagas-hub/
-├── scripts/
-│   ├── collector-standard.mjs
-│   ├── collect-gupy.mjs
-│   ├── collect-inhire.mjs
-│   ├── collect-greenhouse.mjs
-│   ├── collect-lever.mjs
-│   ├── collect-ashby.mjs
-│   ├── merge-jobs.mjs
-│   └── sync-supabase.mjs
-│
-├── src/
-│   ├── components/
-│   ├── routes/
-│   ├── services/
-│   │   └── jobsRepository.ts
-│   ├── types/
-│   │   └── job.ts
-│   └── ...
-│
-└── package.json
-
-Variáveis de ambiente
-
-Exemplo:
-
+```dotenv
 VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
 
+A versão de desenvolvimento usa automaticamente a **prévia local, somente leitura**, quando essas duas variáveis públicas não estiverem configuradas. Ela lê `scripts/radar-jobs.json` via servidor de desenvolvimento. Quando o Supabase estiver configurado, a página `/vagas` mostra a consulta real; `?previa=local` pode alternar para a prévia em desenvolvimento.
+
+Para sincronização administrativa, manter a chave secreta **fora do Git**, em `.env.collector.local` ou outro arquivo local ignorado:
+
+```dotenv
 SUPABASE_URL=https://SEU-PROJETO.supabase.co
 SUPABASE_SECRET_KEY=sb_secret_...
+```
 
-Importante
+Nunca compartilhar secrets, copiar `sb_secret_` para `VITE_*` ou comitar backups/arquivos `.env.*.local`.
 
-Nunca exponha:
+## Pipeline e comandos
 
-SUPABASE_SECRET_KEY
+Execute os coletores necessários ou o workflow de coleta controlada e consolide:
 
-em código frontend, commits, logs públicos ou variáveis com prefixo VITE_.
-
-Arquivos locais de ambiente devem permanecer fora do Git.
-
-Execução local
-
-Instale as dependências:
-
-npm install
-
-Execute o frontend:
-
-npm run dev
-
-Build de produção:
-
-npm run build
-
-Pipeline de dados
-
-Execute os coletores correspondentes e depois:
-
+```powershell
 node scripts/merge-jobs.mjs
-
-Teste a sincronização:
-
 node scripts/sync-supabase.mjs
+```
 
-Aplicação real no Supabase:
+O segundo comando **não grava dados**: executa um dry run local de consistência. Ele **não valida credenciais nem a compatibilidade do banco**.
 
+Somente depois de backup verificado, revisão dos dados, autorização e conferência do projeto Supabase correto, a sincronização real pode ser executada:
+
+```powershell
 node scripts/sync-supabase.mjs --apply
+```
 
-Deploy
+**Segurança operacional atual:**
 
-Build:
+- `--apply` realiza upsert em lotes e **não desativa vagas ausentes nem exclui históricos por padrão**.
+- `--deactivate-absent` é uma decisão operacional separada, para desativar as vagas não observadas.
+- `--purge-expired` exige `--deactivate-absent` e habilita exclusão física após 15 dias; **não utilizar sem backup e plano específico**.
+- Não há transação global para todos os lotes: falhas intermediárias podem deixar uma carga parcial.
+- O GitHub Actions agenda coletas para **08h e 18h de Brasília**, mas a execução agendada e a gravação estão **bloqueadas por padrão**. Somente habilitar a variável de repositório `RADAR_ENABLE_PRODUCTION_SYNC=true` após aprovação do fluxo automático e configuração dos secrets.
 
-npm run build
+Guia: [Preparação de produção, backup e recuperação](docs/PREPARACAO_SUPABASE_PRODUCAO.md) e [histórico da recuperação](docs/RETOMADA_PIPELINE_2026-11.md).
 
-Deploy no Cloudflare:
+## Qualidade, build e publicação
 
-npx nitro deploy --prebuilt
+```powershell
+npm.cmd run lint
+npm.cmd run build
+npm.cmd audit
+```
 
-Rotas públicas
+O PR de recuperação executa testes, verificação TypeScript e compilação via GitHub Actions. Alertas `npm audit` precisam ser avaliados por dependência e alcance antes do deploy; não usar `npm audit fix --force` sem revisar quebras.
 
-/
-/vagas
-/vagas/$jobId
-/sobre
-/termos
-/privacidade
+A publicação no Cloudflare exige **merge e validação do frontend**, não apenas sincronizar o banco. O processo de deploy deve ser conferido no ambiente da aplicação.
 
-Objetivos técnicos demonstrados
+## Rotas
 
-Este projeto foi construído também como case prático de:
+- `/` — página inicial
+- `/vagas` — busca e filtros
+- `/vagas/$jobId` — detalhe de uma vaga
+- `/sobre`, `/termos`, `/privacidade` — páginas institucionais
 
-integração com múltiplas fontes públicas;
+## Aviso
 
-consumo de APIs;
-
-engenharia de dados;
-
-paginação em grandes volumes;
-
-ETL;
-
-normalização de schemas;
-
-qualidade de dados;
-
-deduplicação;
-
-modelagem PostgreSQL;
-
-sincronização idempotente;
-
-segurança com RLS;
-
-React e TypeScript;
-
-arquitetura desacoplada;
-
-deploy serverless.
-
-Próximas evoluções
-
-Possíveis melhorias futuras:
-
-execução automática diária do pipeline;
-
-filtros executados diretamente no PostgreSQL;
-
-paginação server-side;
-
-observabilidade dos coletores;
-
-métricas de qualidade por fonte;
-
-domínio próprio;
-
-alertas e favoritos, caso o produto evolua para contas de usuário.
-
-Aviso
-
-O Radar Vagas é um projeto independente e não possui vínculo oficial com Gupy, InHire, Greenhouse, Lever, Ashby ou com as empresas cujas oportunidades aparecem no catálogo.
-
-As vagas, marcas e conteúdos pertencem aos seus respectivos titulares.
-
-A página oficial da oportunidade deve ser considerada a fonte definitiva para requisitos, condições e candidatura.
+O Radar Vagas é um projeto independente e não possui vínculo oficial com Gupy, InHire, Greenhouse, Lever, Ashby, InfoJobs ou com os empregadores. As marcas, informações e oportunidades pertencem aos respectivos titulares. Os anúncios de origem prevalecem quanto a requisitos, disponibilidade e candidatura.
