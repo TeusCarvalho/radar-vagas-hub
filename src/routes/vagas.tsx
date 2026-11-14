@@ -177,8 +177,12 @@ function VagasPage() {
     source: "origem",
   };
 
-  const hasActiveFilters =
-    Object.values(filters).some((value) => value !== "todos") || search.q.length > 0;
+  const appliedFilterCount = Object.values(filters).filter((value) => value !== "todos").length;
+  const hasActiveFilters = appliedFilterCount > 0 || search.q.length > 0;
+  const [showFilters, setShowFilters] = useState(
+    [search.nivel, search.estado, search.area, search.contrato, search.origem]
+      .some((value) => value !== "todos"),
+  );
 
   // Cada consulta já retorna somente a página solicitada pelo servidor.
   const paginatedJobs = data?.jobs ?? [];
@@ -272,65 +276,70 @@ function VagasPage() {
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
-          Vagas recentes
-        </h1>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+        <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-6">
+          <p className="text-xs font-semibold uppercase tracking-wider text-brand">
+            Radar de oportunidades · últimos 7 dias
+          </p>
+          <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
+            Encontre sua próxima vaga
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Pesquise por cargo ou empresa e encontre oportunidades recentes em seis plataformas.
+          </p>
 
-        <p className="mt-1 text-sm text-muted-foreground">
-          Oportunidades publicadas nos últimos 7 dias. Confira na fonte se a candidatura está aberta.
-        </p>
-
-        <form
-          onSubmit={submitSearch}
-          className="mt-6 flex flex-col gap-3 sm:flex-row"
-          role="search"
-        >
-          <div className="relative flex-1">
-            <Label htmlFor="busca-vagas" className="sr-only">
+          <form onSubmit={submitSearch} className="mt-5 flex flex-col gap-2 sm:flex-row" role="search">
+            <div className="relative min-w-0 flex-1">
+              <Label htmlFor="busca-vagas" className="sr-only">
+                Cargo, empresa ou palavra-chave
+              </Label>
+              <Search
+                className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <Input
+                id="busca-vagas"
+                value={term}
+                onChange={(event) => setTerm(event.target.value)}
+                maxLength={120}
+                placeholder="Ex.: Analista de Dados, Python ou empresa"
+                className="h-12 bg-background pl-10 text-base"
+              />
+            </div>
+            <Button type="submit" size="lg" className="h-12 px-7">
+              <Search className="size-4" aria-hidden="true" />
               Buscar vagas
-            </Label>
-
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-
-            <Input
-              id="busca-vagas"
-              value={term}
-              onChange={(event) => setTerm(event.target.value)}
-              placeholder="Cargo, palavra-chave ou empresa"
-              className="h-12 bg-surface pl-9 text-base"
-            />
-          </div>
-
-          <Button type="submit" size="lg" className="h-12">
-            Buscar vagas
-          </Button>
-        </form>
-
-        <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Filtro rápido de modalidade">
-          <span className="mr-1 text-xs font-semibold text-muted-foreground">Modalidade:</span>
-          {([
-            ["todos", "Todas"],
-            ["remote", "Remotas"],
-            ["hybrid", "Híbridas"],
-            ["onsite", "Presenciais"],
-          ] as const).map(([value, label]) => (
-            <Button
-              key={value}
-              type="button"
-              size="sm"
-              variant={filters.workplaceType === value ? "default" : "outline"}
-              aria-pressed={filters.workplaceType === value}
-              onClick={() => updateFilter("workplaceType", value)}
-              className="h-8 rounded-full px-3 text-xs"
-            >
-              {label}
             </Button>
-          ))}
-        </div>
+          </form>
+
+          <div
+            className="mt-4 flex flex-wrap items-center gap-2"
+            role="group"
+            aria-label="Filtrar rapidamente pela modalidade"
+          >
+            <span className="mr-1 text-xs font-semibold text-muted-foreground">
+              Modalidade
+            </span>
+            {([
+              ["todos", "Todas"],
+              ["remote", "Remotas"],
+              ["hybrid", "Híbridas"],
+              ["onsite", "Presenciais"],
+            ] as const).map(([value, label]) => (
+              <Button
+                key={value}
+                type="button"
+                size="sm"
+                variant={filters.workplaceType === value ? "default" : "outline"}
+                aria-pressed={filters.workplaceType === value}
+                onClick={() => updateFilter("workplaceType", value)}
+                className="h-9 rounded-full px-3 text-xs"
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        </section>
 
         {import.meta.env.DEV && (
           <div
@@ -370,46 +379,60 @@ function VagasPage() {
           </div>
         )}
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-[280px_1fr]">
-          <div className="lg:sticky lg:top-24 lg:self-start">
-            <JobFilters
-              value={filters}
-              states={states}
-              categories={categories}
-              hasActiveFilters={hasActiveFilters}
-              onChange={updateFilter}
-              onClear={clearAll}
-            />
+        <section className="mt-5" aria-label="Resultados de vagas">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+            <div>
+              <h2 className="text-base font-bold text-foreground" aria-live="polite">
+                {isPending
+                  ? "Buscando oportunidades…"
+                  : isError
+                    ? "Não foi possível carregar as vagas"
+                    : `${totalJobs.toLocaleString("pt-BR")} ${totalJobs === 1 ? "vaga encontrada" : "vagas encontradas"}`}
+              </h2>
+              {!isPending && !isError && totalJobs > 0 && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Mostrando {firstVisible.toLocaleString("pt-BR")}–{lastVisible.toLocaleString("pt-BR")} ·
+                  Ordenadas por publicação mais recente
+                </p>
+              )}
+            </div>
+
+            <Button
+              type="button"
+              variant={showFilters ? "secondary" : "outline"}
+              size="sm"
+              aria-expanded={showFilters}
+              aria-controls="painel-filtros"
+              onClick={() => setShowFilters((current) => !current)}
+              className="h-9"
+            >
+              <SlidersHorizontal className="size-4" aria-hidden="true" />
+              {showFilters ? "Ocultar filtros" : "Filtros"}
+              {appliedFilterCount > 0 && (
+                <span className="rounded-full bg-brand-soft px-1.5 text-xs font-bold text-brand">
+                  {appliedFilterCount}
+                </span>
+              )}
+            </Button>
           </div>
 
-          <div>
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-card">
-              <div>
-                <p className="text-sm font-semibold text-foreground" aria-live="polite">
-                  {isPending
-                    ? "Carregando vagas…"
-                    : isError
-                      ? "Falha ao carregar vagas"
-                      : `${totalJobs} ${totalJobs === 1 ? "vaga encontrada" : "vagas encontradas"}`}
-                </p>
-
-                {!isPending && !isError && totalJobs > 0 && (
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Mostrando {firstVisible}–{lastVisible} de {totalJobs}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <SlidersHorizontal className="size-4" aria-hidden="true" />
-                <span>Mais recentes</span>
-              </div>
+          {showFilters && (
+            <div id="painel-filtros" className="mt-4">
+              <JobFilters
+                value={filters}
+                states={states}
+                categories={categories}
+                hasActiveFilters={hasActiveFilters}
+                onChange={updateFilter}
+                onClear={clearAll}
+              />
             </div>
+          )}
 
             {isPending && (
               <div className="mt-4 space-y-4">
                 {[0, 1, 2, 3].map((index) => (
-                  <Skeleton key={index} className="h-48 w-full rounded-2xl" />
+                  <Skeleton key={index} className="h-36 w-full rounded-xl" />
                 ))}
               </div>
             )}
@@ -466,7 +489,7 @@ function VagasPage() {
 
             {!isPending && !isError && data && totalJobs > 0 && (
               <>
-                <div className="mt-4 space-y-4">
+                <div className="mt-4 space-y-3">
                   {paginatedJobs.map((job) => (
                     <JobCard key={job.id} job={job} isLocalPreview={isLocalPreview} />
                   ))}
@@ -510,10 +533,9 @@ function VagasPage() {
                 )}
               </>
             )}
-          </div>
-        </div>
+        </section>
 
-        <p className="mt-10 text-center text-sm text-muted-foreground">
+        <p className="mt-8 text-center text-sm text-muted-foreground">
           Não achou o que procurava?{" "}
           <Link to="/" className="font-semibold text-brand hover:underline">
             Voltar para a página inicial
