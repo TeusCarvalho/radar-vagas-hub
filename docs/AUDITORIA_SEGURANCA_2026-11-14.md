@@ -1,7 +1,7 @@
 # Auditoria de segurança — Radar Vagas Hub
 **Data:** 14/11/2026 • **Escopo:** dependências npm, código do PR #1, acesso Supabase/PostgreSQL de produção e GitHub Actions.
 
-> **AUDITORIA READ-ONLY EM PRODUÇÃO.** Foram realizadas consultas SQL e verificações de segurança, **sem alteração das permissões, RLS ou dados de produção**. O código do PR recebeu proteções adicionais. Os comandos SQL de correção abaixo são **proposta**, não foram executados.
+> **ATUALIZAÇÃO APÓS APROVAÇÃO:** A auditoria inicial foi somente leitura. Em 14/11/2026, após autorização expressa, foram aplicadas **apenas** as duas correções prioritárias de grants e EXECUTE descritas abaixo. Nenhum registro de vaga ou política RLS foi alterado. O código do PR recebeu proteções adicionais.
 
 ## Resumo executivo
 
@@ -11,8 +11,8 @@
 | Ferramentas de desenvolvimento | **Risco moderado identificado** | 7 alertas derivados da mesma dependência vulnerável `minimatch@10.2.6` (CVE-2026-118764) |
 | Frontend → Supabase | **Arquitetura correta, limites a reforçar** | Usa `VITE_SUPABASE_PUBLISHABLE_KEY` pública, não a Secret Key; cliente faz SELECT paginado |
 | RLS | **Ativo** | 4/4 tabelas do esquema public com RLS habilitada |
-| Grants de anon/authenticated | **Correção prioritária proposta** | TRUNCATE/TRIGGER/REFERENCES desnecessários em `jobs` e `radar_status` |
-| Função privilegiada pública | **Correção prioritária proposta** | `public.rls_auto_enable()` é `SECURITY DEFINER` com EXECUTE herdado de PUBLIC |
+| Grants de anon/authenticated | **Corrigido em produção** | TRUNCATE/TRIGGER/REFERENCES revogados em `jobs` e `radar_status` |
+| Função privilegiada pública | **Corrigido em produção** | `public.rls_auto_enable()` não possui mais EXECUTE para PUBLIC/anon/authenticated |
 | Extensão `pg_trgm` | **Aviso** | Instalada em `public`; planejar migração de schema com teste de índices |
 | Histórico acessível | **Decisão de produto / defesa em profundidade** | RLS filtra `active=true`, não a janela de 7 dias |
 | RLS sem policy em duas tabelas | **Comportamento intencional de bloqueio** | `job_discoveries` e `radar_status` não possuem SELECT público |
@@ -51,7 +51,7 @@ Projeto `mrnoslwscnvpwrjsfqgk`.
 
 **Importante:** a chave pública permite chamadas à API independentemente do frontend. Nunca considerar os filtros visuais uma barreira de segurança.
 
-## 3. Grants excessivos — ação necessária
+## 3. Grants excessivos — correção aplicada e verificada
 
 Consultas `has_table_privilege` e `pg_class.relacl` confirmaram que `anon` e `authenticated` possuem:
 
@@ -62,7 +62,7 @@ Consultas `has_table_privilege` e `pg_class.relacl` confirmaram que `anon` e `au
 
 **Risco:** RLS **não protege TRUNCATE**. Embora a API REST comum não exponha um endpoint TRUNCATE, conceder esse privilégio ao papel público viola o princípio do menor privilégio e aumenta o impacto potencial de funções SQL expostas ou outros vetores. Não há demonstração de exploração no projeto.
 
-**SQL proposto para futura aprovação e execução controlada em produção (AINDA NÃO EXECUTADO):**
+**SQL aplicado em produção, após autorização expressa (14/11/2026):**
 
 ```sql
 BEGIN;
@@ -78,9 +78,9 @@ REVOKE EXECUTE
 COMMIT;
 ```
 
-A função `rls_auto_enable()` está associada ao event trigger `ensure_rls` e não deveria ser chamada como RPC público. Revogar EXECUTE público mantém a função e o event trigger cadastrados, mas requer confirmação funcional após a alteração.
+A função `rls_auto_enable()` está associada ao event trigger `ensure_rls` e não deveria ser chamada como RPC público. O EXECUTE público foi revogado; após a alteração, o gatilho permaneceu **ativo** (`evtenabled='O'`) e o papel `postgres` manteve EXECUTE.
 
-**Verificação read-only planejada após aprovação:**
+**Verificação read-only executada após a migração:**
 
 ```sql
 SELECT
@@ -90,13 +90,13 @@ SELECT
   has_function_privilege('anon', 'public.rls_auto_enable()', 'EXECUTE') AS executa_funcao_privilegiada;
 ```
 
-Esperado: `true, false, false, false`. Verificar também o funcionamento do frontend e a manutenção do event trigger.
+**Confirmado:** `true, false, false, false`. Os demais grants `TRUNCATE`, `TRIGGER`, `REFERENCES` de `anon` e `authenticated` foram verificados como `false` nas tabelas afetadas. `service_role` manteve INSERT/UPDATE, as policies RLS permaneceram intactas, e a consulta de leitura usando `SET LOCAL ROLE anon` retornou **128.904 vagas ativas, 20.818 recentes**. A contagem total permaneceu em **150.455**. O teste visual no navegador após essa migração ainda é recomendado.
 
 **Referência oficial:** https://supabase.com/docs/guides/api/securing-your-api
 
 ## 4. Outros avisos do Supabase Advisor
 
-- **`anon_security_definer_function_executable` + `authenticated_security_definer_function_executable` (WARN):** dois avisos para a **mesma função** `public.rls_auto_enable()`. A correção proposta acima retira EXECUTE do escopo público.
+- **`anon_security_definer_function_executable` + `authenticated_security_definer_function_executable` (WARN):** os dois avisos relativos a `public.rls_auto_enable()` **desapareceram** após a migração, conforme nova execução do Security Advisor.
 - **`extension_in_public` (WARN):** `pg_trgm` está instalado em `public`. Para reduzir a superfície exposta, avaliar movê-lo para `extensions`, mas **não mover nesta etapa**: índices `GIN` e referências ao operador `public.gin_trgm_ops` devem ser testados e, se necessário, revisados.
 - **`rls_enabled_no_policy` (INFO, duas tabelas):** `radar_status` e `job_discoveries`; essa configuração bloqueia leitura/escrita pública por falta de policy e de grants de leitura.
 - **Health:** sem avisos.
@@ -146,7 +146,7 @@ Não foi possível verificar por estes acessos: valores dos GitHub Actions Secre
 
 Antes de considerar a publicação liberada:
 
-1. Aprovar e aplicar as revogações mínimas de GRANT e EXECUTE; executar consultas read-only e testar página.
+1. **Concluído:** revogações mínimas de GRANT e EXECUTE, consulta pós-migração e teste da leitura pública simulada com o papel `anon`. Recomenda-se teste adicional no navegador.
 2. Decidir sobre a política de 7 dias no RLS e exposição da tabela legacy.
 3. Documentar aceitação temporária ou testar override de minimatch 11 (dev-only); não usar `--force` automaticamente.
 4. Testar o deploy Cloudflare e confirmar headers, chave pública no bundle e indisponibilidade de RPC privilegiadas.
