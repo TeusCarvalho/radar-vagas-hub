@@ -350,6 +350,14 @@ async function getOneRealJob() {
 }
 
 async function main() {
+  if (!process.argv.includes("--apply")) {
+    console.error(
+      "Teste de escrita LEGADO bloqueado por padrão. " +
+      "Executar com --apply somente após autorização e backup validado.",
+    );
+    process.exitCode = 1;
+    return;
+  }
   console.log(
     "====================================",
   );
