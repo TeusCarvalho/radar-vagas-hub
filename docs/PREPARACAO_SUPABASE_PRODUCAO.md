@@ -106,7 +106,7 @@ Total do banco após a importação: **150.455** registros (incluindo histórico
 - **PR #1 continua em draft** e o novo frontend ainda exige merge, deploy e verificação no domínio público.
 - GitHub Actions agenda 08h e 18h de Brasília, mas a variável `RADAR_ENABLE_PRODUCTION_SYNC` deve ficar ausente/falsa até aprovação específica. Sem essa variável, o job agendado não executa.
 - Configurar `SUPABASE_URL` e `SUPABASE_SECRET_KEY` exclusivamente nos secrets do repositório para execução de produção; nunca usar `VITE_` para credenciais secretas.
-- A sincronização só faz upsert por padrão. Decidir futuramente desativação de registros ausentes e exclusão física (15 dias) **separadamente**, após novo backup e avaliação de impacto.
+- A sincronização só faz upsert por padrão. A desativação de registros ausentes ou exclusão física (15 dias) depende de flags explícitas **e** de `RADAR_ALLOW_DESTRUCTIVE_SYNC=YES_I_HAVE_A_VERIFIED_BACKUP`, após novo backup e avaliação de impacto. Não ativar neste momento.
 - Não existe transação global para 53 lotes; em falhas, verificar quais lotes foram aplicados antes de qualquer repetição.
 - Revisar avisos de dependências npm e testar o site de produção após o deploy.
 - No plano Free, acompanhar espaço do banco, tráfego e limites de cota, sem presumir capacidade ilimitada.
