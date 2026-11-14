@@ -1,3 +1,5 @@
+import { definitiveCategoryFromTitle } from "./category-title-rules.mjs";
+
 export const WINDOW_DAYS = 7;
 
 export const STANDARD_CATEGORIES = [
@@ -101,6 +103,8 @@ export function inferStandardSeniority(title = "", sourceLevel = "") {
 }
 
 export function inferStandardCategory(title = "", extra = "") {
+  const fromTitle = definitiveCategoryFromTitle(title);
+  if (fromTitle) return fromTitle;
   const text = normalizeText(`${title} ${extra}`);
 
   const rules = [
