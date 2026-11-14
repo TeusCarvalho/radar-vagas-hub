@@ -395,25 +395,37 @@ function VagasPage() {
                   Ordenadas por publicação mais recente
                 </p>
               )}
+              {search.q && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Busca: <span className="font-medium text-foreground">“{search.q}”</span>
+                </p>
+              )}
             </div>
 
-            <Button
-              type="button"
-              variant={showFilters ? "secondary" : "outline"}
-              size="sm"
-              aria-expanded={showFilters}
-              aria-controls="painel-filtros"
-              onClick={() => setShowFilters((current) => !current)}
-              className="h-9"
-            >
-              <SlidersHorizontal className="size-4" aria-hidden="true" />
-              {showFilters ? "Ocultar filtros" : "Filtros"}
-              {appliedFilterCount > 0 && (
-                <span className="rounded-full bg-brand-soft px-1.5 text-xs font-bold text-brand">
-                  {appliedFilterCount}
-                </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {hasActiveFilters && (
+                <Button type="button" variant="ghost" size="sm" onClick={clearAll}>
+                  Limpar filtros
+                </Button>
               )}
-            </Button>
+              <Button
+                type="button"
+                variant={showFilters ? "secondary" : "outline"}
+                size="sm"
+                aria-expanded={showFilters}
+                aria-controls="painel-filtros"
+                onClick={() => setShowFilters((current) => !current)}
+                className="h-9"
+              >
+                <SlidersHorizontal className="size-4" aria-hidden="true" />
+                {showFilters ? "Ocultar filtros" : "Filtros"}
+                {appliedFilterCount > 0 && (
+                  <span className="rounded-full bg-brand-soft px-1.5 text-xs font-bold text-brand">
+                    {appliedFilterCount}
+                  </span>
+                )}
+              </Button>
+            </div>
           </div>
 
           {showFilters && (
