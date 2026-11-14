@@ -2,6 +2,12 @@ name: Atualizar vagas
 
 on:
   workflow_dispatch:
+    inputs:
+      sync_production:
+        description: "Sincronizar com o Supabase após validar as seis fontes (somente upsert)"
+        type: boolean
+        required: false
+        default: false
 
   schedule:
     # Brasília (UTC-3)
@@ -21,8 +27,8 @@ concurrency:
 jobs:
   atualizar-vagas:
     name: Coletar, normalizar e sincronizar
-    # Manual: coleta e valida sem gravar. Agendamento: somente após liberação.
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.RADAR_ENABLE_PRODUCTION_SYNC == 'true' }}
+    # Agendamento sincroniza depois de validar as seis fontes.
+    # Execução manual testa sem escrever, salvo quando a caixa de autorização for marcada.
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
@@ -228,12 +234,13 @@ jobs:
           );
           NODE
 
-      # Bloqueado por padrão. Habilitar a variável de repositório SOMENTE
-      # após backup validado, ajuste da constraint InfoJobs e aprovação do deploy.
+      # Backup, constraint InfoJobs e sincronização inicial foram validados em 14/11/2026.
+      # Cron: duas atualizações por dia; execução manual exige opt-in para gravar.
+      # A carga faz somente upsert: não desativa nem exclui vagas existentes.
       # Secrets ficam EXCLUSIVAMENTE nos steps de validação e sync.
       # Não expor credenciais de produção a npm ci, caches ou coletores externos.
       - name: Validar credenciais somente antes da sincronização
-        if: ${{ vars.RADAR_ENABLE_PRODUCTION_SYNC == 'true' }}
+        if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.sync_production == true) }}
         shell: bash
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -252,18 +259,18 @@ jobs:
             exit 1
           fi
 
-      - name: Sincronizar Supabase (ativação explícita)
-        if: ${{ vars.RADAR_ENABLE_PRODUCTION_SYNC == 'true' }}
+      - name: Sincronizar Supabase (somente upsert)
+        if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.sync_production == true) }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: node scripts/sync-supabase.mjs --apply
 
-      - name: Publicação bloqueada por segurança
-        if: ${{ vars.RADAR_ENABLE_PRODUCTION_SYNC != 'true' }}
+      - name: Execução manual sem gravação no banco
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_production != true }}
         run: |
-          echo "Coleta e merge concluídos; sincronização de produção propositalmente desativada."
-          echo "Para liberar: backup validado, constraint InfoJobs e aprovação explícita."
+          echo "Coleta e merge concluídos. Modo manual de diagnóstico: nenhuma vaga foi gravada."
+          echo "Para sincronizar manualmente, execute novamente marcando sync_production."
 
       - name: Resumo da execução
         if: always()
@@ -272,6 +279,10 @@ jobs:
           echo "## Radar Vagas — atualização" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Horário UTC: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Programação: 08h e 18h (horário de Brasília, UTC-3)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tipo de execução: ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Escrita autorizada: ${{ github.event_name == 'schedule' || inputs.sync_production == true }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Política: somente upsert (sem desativação/exclusão)" >> "$GITHUB_STEP_SUMMARY"
 
           if [ -f scripts/radar-jobs.json ]; then
             TOTAL=$(node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('./scripts/radar-jobs.json','utf8')); console.log(j.length)")
