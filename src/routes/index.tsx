@@ -60,15 +60,15 @@ function HomePage() {
 
       <main className="flex-1">
         <section className="border-b border-border bg-card">
-          <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
-            <div className="max-w-3xl">
+          <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+            <div className="mx-auto max-w-3xl text-center">
               <p className="text-xs font-semibold uppercase tracking-wider text-brand">
                 Vagas publicadas nos últimos 7 dias
               </p>
-              <h1 className="mt-3 max-w-2xl text-3xl font-extrabold leading-tight tracking-tight text-foreground sm:text-5xl">
+              <h1 className="mx-auto mt-3 max-w-2xl text-3xl font-extrabold leading-tight tracking-tight text-foreground sm:text-5xl">
                 Encontre sua próxima oportunidade.
               </h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+              <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
                 Busque cargo, empresa ou área em seis plataformas. Compare os resultados e vá
                 diretamente ao anúncio original para se candidatar.
               </p>
@@ -76,7 +76,7 @@ function HomePage() {
               <form
                 onSubmit={submitSearch}
                 role="search"
-                className="mt-7 flex flex-col gap-2 sm:flex-row"
+                className="mx-auto mt-6 flex max-w-3xl flex-col gap-2 sm:flex-row"
               >
                 <div className="relative min-w-0 flex-1">
                   <Label htmlFor="busca-home" className="sr-only">
@@ -101,7 +101,7 @@ function HomePage() {
                 </Button>
               </form>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2">
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                 <span className="mr-1 text-xs font-medium text-muted-foreground">
                   Busca rápida:
                 </span>
@@ -124,7 +124,7 @@ function HomePage() {
         </section>
 
         <section
-          className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6"
+          className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6"
           aria-label="Como funciona o Radar Vagas"
         >
           <div className="grid gap-4 sm:grid-cols-3">
