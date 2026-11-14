@@ -50,7 +50,7 @@ test("busca por uma palavra não cria grupos desnecessários", () => {
 
 test("conectivos isolados continuam pesquisáveis, sem falha", () => {
   assert.deepEqual(searchTerms("de"), ["de"]);
-  assert.equal(searchTerms(""), []);
+  assert.deepEqual(searchTerms(""), []);
 });
 
 test("buscas com pontuação maliciosa não incluem operadores arbitrários", () => {
