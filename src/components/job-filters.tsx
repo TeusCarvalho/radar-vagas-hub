@@ -150,11 +150,11 @@ export function JobFilters({
         <ChevronDown className={`size-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`} aria-hidden="true" />
       </button>
 
-      <div
-        id="filtros-avancados"
-        hidden={!showAdvanced}
-        className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1"
-      >
+      {showAdvanced && (
+        <div
+          id="filtros-avancados"
+          className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1"
+        >
         <FilterSelect
           id="filtro-area"
           label="Área"
@@ -182,7 +182,8 @@ export function JobFilters({
           options={toOptions(SOURCE_LABELS)}
           onChange={(v) => onChange("source", v)}
         />
-      </div>
+        </div>
+      )}
     </aside>
   );
 }
