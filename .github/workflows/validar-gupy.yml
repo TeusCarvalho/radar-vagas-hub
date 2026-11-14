@@ -31,6 +31,8 @@ jobs:
       - name: Smoke test HTTP do portal Gupy
         run: node scripts/smoke-gupy.mjs
       - name: Instalar dependências do frontend
-        run: npm ci
+        # O repositório ainda não possui package-lock.json versionado;
+        # npm ci só poderá substituir npm install após gerar esse lockfile.
+        run: npm install --no-audit --no-fund
       - name: Compilar frontend
         run: npm run build
