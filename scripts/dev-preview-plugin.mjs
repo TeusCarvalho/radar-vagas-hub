@@ -18,10 +18,16 @@ export function selectPreviewPage(jobs, params, nowMs = Date.now()) {
   const page = Number.isSafeInteger(pageInput) && pageInput > 0
     ? Math.min(pageInput, 100_000)
     : 1;
-  const terms = normalize(String(params.get("q") ?? "").slice(0, 120))
+  const stopWords = new Set([
+    "a", "o", "as", "os", "de", "da", "do", "das", "dos",
+    "e", "em", "com", "para", "por", "no", "na", "nos", "nas", "um", "uma",
+  ]);
+  const tokens = normalize(String(params.get("q") ?? "").slice(0, 120))
+    .replace(/[^a-z0-9\s-]/g, " ")
     .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 6);
+    .filter(Boolean);
+  const meaningful = tokens.filter((term) => !stopWords.has(term));
+  const terms = (meaningful.length ? meaningful : tokens).slice(0, 6);
 
   const filters = ["workplaceType", "seniority", "state", "category", "contractType", "source"];
   const columns = ["workplace_type", "seniority", "state", "category", "contract_type", "source"];
