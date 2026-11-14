@@ -96,8 +96,9 @@ function mapSource(value: string): JobSource {
   if (source === "greenhouse") return "greenhouse";
   if (source === "lever") return "lever";
   if (source === "ashby") return "ashby";
+  if (source === "infojobs") return "infojobs";
 
-  return "gupy";
+  return "unknown";
 }
 
 function mapWorkplace(value: string | null): WorkplaceType {
@@ -250,6 +251,10 @@ async function loadAllActiveJobs(): Promise<Job[]> {
         .from("jobs")
         .select(JOB_COLUMNS)
         .eq("active", true)
+        // Escopo da API antes da paginação: evita carregar milhares de
+        // registros antigos, mesmo quando a última sincronização falhou.
+        .gte("published_at", new Date(Date.now() - 7 * 86_400_000).toISOString())
+        .lte("published_at", new Date().toISOString())
         .order("published_at", {
           ascending: false,
         })
