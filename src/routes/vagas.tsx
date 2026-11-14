@@ -283,7 +283,7 @@ function VagasPage() {
       <SiteHeader />
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-        <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-6">
+        <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-brand">
             Radar de oportunidades · últimos 7 dias
           </p>
@@ -294,7 +294,7 @@ function VagasPage() {
             Pesquise por cargo ou empresa e encontre oportunidades recentes em seis plataformas.
           </p>
 
-          <form onSubmit={submitSearch} className="mt-5 flex flex-col gap-2 sm:flex-row" role="search">
+          <form onSubmit={submitSearch} className="mt-4 flex flex-col gap-2 sm:flex-row" role="search">
             <div className="relative min-w-0 flex-1">
               <Label htmlFor="busca-vagas" className="sr-only">
                 Cargo, empresa ou palavra-chave
@@ -319,7 +319,7 @@ function VagasPage() {
           </form>
 
           <div
-            className="mt-4 flex flex-wrap items-center gap-2"
+            className="mt-3 flex flex-wrap items-center gap-2"
             role="group"
             aria-label="Filtrar rapidamente pela modalidade"
           >
@@ -349,18 +349,18 @@ function VagasPage() {
 
         {import.meta.env.DEV && (
           <div
-            className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand-soft/30 p-4"
+            className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2"
             role="status"
           >
-            <p className="text-sm text-foreground">
+            <p className="text-xs text-muted-foreground">
               {isAutomaticLocalPreview
-                ? "Prévia local automática: o Supabase não está configurado neste computador. As vagas vêm do radar-jobs.json, sem gravações no banco."
+                ? "Prévia local automática · dados do JSON, sem gravação no banco."
                 : isLocalPreview
-                  ? "Prévia local ativa: resultados do radar-jobs.json. Nenhuma vaga foi enviada ao Supabase."
-                  : "Consulta Supabase ativa. Você também pode visualizar o catálogo local sem alterar o banco."}
+                  ? "Prévia local ativa · nenhuma vaga foi enviada ao Supabase."
+                  : "Conectado ao Supabase · consulta de vagas ativa."}
             </p>
             {isAutomaticLocalPreview ? (
-              <span className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
+              <span className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">
                 Somente desenvolvimento
               </span>
             ) : (
@@ -379,7 +379,7 @@ function VagasPage() {
                   })
                 }
               >
-                {isLocalPreview ? "Voltar à consulta Supabase" : "Prévia das vagas locais"}
+                {isLocalPreview ? "Voltar ao Supabase" : "Prévia local"}
               </Button>
             )}
           </div>
