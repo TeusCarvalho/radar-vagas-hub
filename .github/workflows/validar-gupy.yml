@@ -21,6 +21,8 @@ jobs:
           node-version: "24"
       - name: Verificar sintaxe
         run: |
+          node --check scripts/sync-supabase.mjs
+          node --check scripts/merge-jobs.mjs
           node --check scripts/catalog-policy.mjs
           node --check scripts/collect-gupy.mjs
           node --check scripts/gupy-api.mjs
