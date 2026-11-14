@@ -302,6 +302,28 @@ function VagasPage() {
           </Button>
         </form>
 
+        <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Filtro rápido de modalidade">
+          <span className="mr-1 text-xs font-semibold text-muted-foreground">Modalidade:</span>
+          {([
+            ["todos", "Todas"],
+            ["remote", "Remotas"],
+            ["hybrid", "Híbridas"],
+            ["onsite", "Presenciais"],
+          ] as const).map(([value, label]) => (
+            <Button
+              key={value}
+              type="button"
+              size="sm"
+              variant={filters.workplaceType === value ? "default" : "outline"}
+              aria-pressed={filters.workplaceType === value}
+              onClick={() => updateFilter("workplaceType", value)}
+              className="h-8 rounded-full px-3 text-xs"
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+
         {import.meta.env.DEV && (
           <div
             className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand-soft/30 p-4"
