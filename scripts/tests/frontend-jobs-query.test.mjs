@@ -30,15 +30,33 @@ test("impede tamanho de página acima do limite e corrige página inválida", ()
   assert.equal(buildJobsPagePlan({page: 2, pageSize: 5}, now).to, 9);
 });
 
-test("busca por título, empresa e localização sem sintaxe especial do PostgREST", () => {
-  assert.deepEqual(searchTerms("  Analista, de (Dados)  "), ["Analista", "de", "Dados"]);
+test("busca por título, empresa e localização sem injeção PostgREST", () => {
+  assert.deepEqual(searchTerms("  Analista, de (Dados)  "), ["Analista", "Dados"]);
   const actual = searchOrFilter(searchTerms("Analista, de (Dados)"));
+  assert.ok(actual.startsWith("and(or("));
   assert.ok(actual.includes("title.ilike.%Analista%"));
   assert.ok(actual.includes("company.ilike.%Dados%"));
   assert.ok(actual.includes("location_text.ilike.%Analista%"));
-  assert.ok(!actual.includes("("));
-  assert.ok(!actual.includes(")"));
-  assert.ok(!actual.includes("title.ilike.%Analista,%"));
+  assert.ok(actual.includes("),or("));
+  assert.ok(!actual.includes("Analista,"));
+  assert.ok(!actual.includes("Dados)"));
+});
+
+test("busca por uma palavra não cria grupos desnecessários", () => {
+  const actual = searchOrFilter(searchTerms("Python"));
+  assert.ok(actual.startsWith("title.ilike.%Python%"));
+  assert.ok(!actual.includes("and("));
+});
+
+test("conectivos isolados continuam pesquisáveis, sem falha", () => {
+  assert.deepEqual(searchTerms("de"), ["de"]);
+  assert.equal(searchTerms(""), []);
+});
+
+test("buscas com pontuação maliciosa não incluem operadores arbitrários", () => {
+  const actual = searchOrFilter(searchTerms("python),id.eq.1"));
+  assert.ok(actual.includes("title.ilike.%python%"));
+  assert.ok(!actual.includes("id.eq.1"));
 });
 
 test("busca vazia não injeta condições artificiais", () => {
