@@ -102,7 +102,15 @@ export function JobCard({ job }: { job: Job }) {
             <span className="inline-flex items-center gap-1.5">
               <Building2 className="size-4 shrink-0" aria-hidden="true" />
 
-              {job.company}
+              <span
+                title={
+                  job.source === "infojobs" && job.company === "Empresa confidencial"
+                    ? "Empresa não identificada no anúncio original do InfoJobs"
+                    : undefined
+                }
+              >
+                {job.company}
+              </span>
             </span>
 
             <span className="inline-flex items-center gap-1.5">
@@ -132,7 +140,7 @@ export function JobCard({ job }: { job: Job }) {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <Chip tone={job.workplaceType === "remoto" ? "success" : "brand"}>
+        <Chip tone={job.workplaceType === "remote" ? "success" : "brand"}>
           {WORKPLACE_LABELS[job.workplaceType]}
         </Chip>
 
