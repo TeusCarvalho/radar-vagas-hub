@@ -49,7 +49,7 @@ jobs:
           node-version: "24"
 
       - name: Instalar dependências
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Validar secrets obrigatórios
         shell: bash
