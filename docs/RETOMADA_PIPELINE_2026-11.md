@@ -46,3 +46,30 @@ Nota: os demais coletores mantêm suas próprias janelas de 15 dias, que
 exigem decisão de produto separada caso se deseje uniformizar a recência.
 A idade da publicação não comprova, isoladamente, que a candidatura
 continua aberta.
+
+## Política unificada: 7 dias; InfoJobs com empresa não identificada
+
+Todos os seis coletores usam 7 dias. Além disso, o merge valida novamente
+a janela de publicação antes de deduplicar. Datas futuras, ausentes ou
+inválidas são rejeitadas; no Greenhouse, `updated_at_fallback` não é aceito
+como publicação e, no Lever, `first_seen_fallback` também não é aceito.
+
+As vagas do InfoJobs sem nome de empresa são **mantidas** e, apenas na saída
+pública, exibidas como `Empresa confidencial`, conforme preferência do produto.
+Esse rótulo significa que o nome **não foi identificado na fonte**: não é
+uma afirmação de sigilo confirmado pelo empregador. Registros com empresa
+não identificada continuam **fora da deduplicação entre plataformas baseada
+na identidade da empresa**, para evitar falsos positivos.
+
+O relatório de merge passa a incluir `publication_window_days`,
+`eligible_inputs`, `excluded_by_reason`, `excluded_by_source` e
+`infojobs_company_confidential`. O synchronizador também valida a idade
+do catálogo antes de qualquer gravação. A retenção física do banco permanece
+separada em 15 dias e **não deve ser confundida** com a janela visível de 7.
+
+No frontend, a fonte InfoJobs é reconhecida e rotulada corretamente e as
+consultas ao Supabase limitam a busca aos últimos 7 dias. Assim, o site
+não expõe registros antigos ainda marcados como ativos em um banco desatualizado.
+
+**Não executar** `sync-supabase.mjs --apply` até validar o merge com os dados
+locais atualizados e definir backup/recuperação do banco.
