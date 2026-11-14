@@ -98,9 +98,13 @@ jobs:
           rm -f scripts/radar-jobs-report.json
 
       - name: Coletar Gupy
+        id: gupy
+        continue-on-error: true
         run: node scripts/collect-gupy.mjs
 
       - name: Coletar InHire
+        id: inhire
+        continue-on-error: true
         run: node scripts/collect-inhire.mjs
 
       - name: Salvar cache de published_at do InHire
@@ -111,15 +115,23 @@ jobs:
           key: inhire-published-${{ runner.os }}-${{ github.run_id }}
 
       - name: Coletar Greenhouse
+        id: greenhouse
+        continue-on-error: true
         run: node scripts/collect-greenhouse.mjs
 
       - name: Coletar Lever
+        id: lever
+        continue-on-error: true
         run: node scripts/collect-lever.mjs
 
       - name: Coletar Ashby
+        id: ashby
+        continue-on-error: true
         run: node scripts/collect-ashby.mjs
 
       - name: Coletar InfoJobs
+        id: infojobs
+        continue-on-error: true
         run: node scripts/collect-infojobs.mjs
 
       - name: Salvar cache de detalhes do InfoJobs
@@ -128,6 +140,54 @@ jobs:
         with:
           path: .cache/infojobs-detail-cache.json
           key: infojobs-detail-${{ runner.os }}-${{ github.run_id }}
+
+      # Executa todos os coletores para diagnosticar falhas individuais, mas
+      # nunca sincroniza um snapshot parcial que desativaria vagas de fontes ausentes.
+      - name: Validar sucesso de todas as fontes
+        env:
+          GUPY_OUTCOME: ${{ steps.gupy.outcome }}
+          INHIRE_OUTCOME: ${{ steps.inhire.outcome }}
+          GREENHOUSE_OUTCOME: ${{ steps.greenhouse.outcome }}
+          LEVER_OUTCOME: ${{ steps.lever.outcome }}
+          ASHBY_OUTCOME: ${{ steps.ashby.outcome }}
+          INFOJOBS_OUTCOME: ${{ steps.infojobs.outcome }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const sources = ["gupy", "inhire", "greenhouse", "lever", "ashby", "infojobs"];
+          const errors = [];
+
+          for (const source of sources) {
+            const outcome = process.env[`${source.toUpperCase()}_OUTCOME`];
+            const path = `scripts/collect-${source === "gupy" ? "gupy" : source}.mjs`;
+            const resultPath = `scripts/${source}-results.json`;
+
+            if (outcome !== "success") {
+              errors.push(`${source}: coletor terminou com status ${outcome || "desconhecido"}`);
+              continue;
+            }
+            if (!fs.existsSync(resultPath)) {
+              errors.push(`${source}: arquivo ${resultPath} não gerado`);
+              continue;
+            }
+            try {
+              const rows = JSON.parse(fs.readFileSync(resultPath, "utf8"));
+              if (!Array.isArray(rows) || rows.length === 0) {
+                errors.push(`${source}: catálogo vazio ou inválido`);
+              } else {
+                console.log(`${source}: ${rows.length} vagas coletadas`);
+              }
+            } catch (error) {
+              errors.push(`${source}: JSON inválido (${error.message})`);
+            }
+          }
+
+          if (errors.length > 0) {
+            console.error("Sincronização bloqueada para preservar os dados existentes:");
+            for (const error of errors) console.error(`- ${error}`);
+            process.exitCode = 1;
+          }
+          NODE
 
       - name: Merge e deduplicação
         run: node scripts/merge-jobs.mjs
