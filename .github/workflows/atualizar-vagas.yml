@@ -21,6 +21,8 @@ concurrency:
 jobs:
   atualizar-vagas:
     name: Coletar, normalizar e sincronizar
+    # Manual: coleta e valida sem gravar. Agendamento: somente após liberação.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.RADAR_ENABLE_PRODUCTION_SYNC == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
