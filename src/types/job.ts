@@ -1,4 +1,4 @@
-export type JobSource = "gupy" | "inhire" | "greenhouse" | "lever" | "ashby";
+export type JobSource = "gupy" | "inhire" | "greenhouse" | "lever" | "ashby" | "infojobs" | "unknown";
 
 export type WorkplaceType = "remote" | "hybrid" | "onsite" | "unknown";
 
@@ -105,4 +105,6 @@ export const SOURCE_LABELS: Record<JobSource, string> = {
   greenhouse: "Greenhouse",
   lever: "Lever",
   ashby: "Ashby",
+  infojobs: "InfoJobs",
+  unknown: "Fonte não identificada",
 };
