@@ -3,6 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { CATALOG_WINDOW_DAYS, publicationExclusionReason } from "./catalog-policy.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,7 +11,7 @@ const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 const INPUT_FILE = path.join(__dirname, "radar-jobs.json");
 const BATCH_SIZE = 400;
-const WINDOW_DAYS = 15;
+const RETENTION_DAYS = 15;
 
 const EXPECTED_SOURCES = ["gupy", "inhire", "greenhouse", "lever", "ashby", "infojobs"];
 
@@ -144,19 +145,23 @@ function validateCatalog(jobs) {
     );
   }
 
-  const invalid = jobs.filter(
-    (job) =>
-      !job?.source ||
-      !job?.external_id ||
-      !job?.title ||
-      !job?.company ||
-      !job?.application_url ||
-      !job?.published_at,
-  );
+  const nowMs = Date.now();
+  const invalid = jobs
+    .map((job) => ({
+      job,
+      reason:
+        publicationExclusionReason(job, nowMs) ??
+        (!job?.external_id || !job?.title || !job?.company || !job?.application_url
+          ? "missing_required_field"
+          : null),
+    }))
+    .filter(({ reason }) => reason !== null);
 
   if (invalid.length > 0) {
+    const sample = invalid.slice(0, 5)
+      .map(({ job, reason }) => `${job?.source ?? "?"}:${job?.external_id ?? "?"} (${reason})`);
     throw new Error(
-      `${invalid.length} vagas inválidas encontradas. Rode merge-jobs.mjs novamente.`,
+      `${invalid.length} vagas não cumprem a política de ${CATALOG_WINDOW_DAYS} dias: ${sample.join(", ")}. Sincronização cancelada.`,
     );
   }
 
@@ -325,12 +330,12 @@ async function main() {
   }
 
   // Retenção física: remove registros publicados antes da janela.
-  const cutoff = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   const { error: retentionError } = await supabase.from("jobs").delete().lt("published_at", cutoff);
 
   if (retentionError) {
-    throw new Error(`Falha na retenção de ${WINDOW_DAYS} dias: ${retentionError.message}`);
+    throw new Error(`Falha na retenção de ${RETENTION_DAYS} dias: ${retentionError.message}`);
   }
 
   const { count: activeCount, error: countError } = await supabase
@@ -364,7 +369,8 @@ async function main() {
   console.log("====================================");
   console.log(`Upserts processados: ${processed}`);
   console.log(`Vagas ativas no Supabase: ${activeCount ?? "não informado"}`);
-  console.log(`Retenção: ${WINDOW_DAYS} dias`);
+  console.log(`Janela de publicação: ${CATALOG_WINDOW_DAYS} dias`);
+  console.log(`Retenção física: ${RETENTION_DAYS} dias`);
   console.log(`Última atualização registrada: ${syncFinishedAt}`);
   console.log(`Duração do sync: ${(durationMs / 1000).toFixed(1)}s`);
   console.log("====================================");
