@@ -1,0 +1,31 @@
+name: Validar recuperação Gupy
+
+on:
+  pull_request:
+    paths:
+      - "scripts/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar-gupy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Verificar sintaxe
+        run: |
+          node --check scripts/collect-gupy.mjs
+          node --check scripts/gupy-api.mjs
+          node --check scripts/sync-supabase.mjs
+          node --check scripts/merge-jobs.mjs
+      - name: Testes unitários do contrato
+        run: node --test scripts/tests/gupy-api.test.mjs
+      - name: Smoke test HTTP do portal Gupy
+        run: node scripts/smoke-gupy.mjs
