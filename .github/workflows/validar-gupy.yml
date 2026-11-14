@@ -34,5 +34,7 @@ jobs:
         # O repositório ainda não possui package-lock.json versionado;
         # npm ci só poderá substituir npm install após gerar esse lockfile.
         run: npm install --no-audit --no-fund
+      - name: Verificar tipos TypeScript
+        run: npx tsc --noEmit
       - name: Compilar frontend
         run: npm run build
