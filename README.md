@@ -75,6 +75,16 @@ Gupy · InHire · Greenhouse · Lever · Ashby · InfoJobs
 
 O frontend consulta o Supabase com **20 vagas por página**, filtro de modalidade, senioridade, UF, categoria, contrato e origem, além de pesquisa por cargo/empresa. A ordem implementada é por **publicação mais recente**; uma classificação real por relevância exigirá trabalho posterior no banco.
 
+### Busca e interface (redesign no PR #1)
+
+- A página inicial coloca a pesquisa em primeiro plano, com atalhos para **Remotas, Híbridas e Presenciais**.
+- A página `/vagas` mantém os filtros rápidos de modalidade visíveis e reúne **nível, estado e área** em painel recolhível; **contrato e plataforma** ficam em “Mais opções”.
+- O campo de busca usa todos os termos relevantes, retirando conectivos simples como “de” e “da”. Os termos podem aparecer em diferentes campos do anúncio, sem injeção de operadores PostgREST.
+- Cards compactos apresentam cargo, empresa, localização, modalidade, publicação e acesso direto a **“Ver vaga original”**.
+- Paginação, filtros e termo de pesquisa preservam a URL para navegação/compartilhamento. A página de detalhe continua acessível pelo título.
+- Os links externos são validados para permitir apenas HTTP(S), inclusive na página de detalhe.
+- **Pendente antes de publicar:** teste visual no navegador em desktop e mobile, teste de pesquisa multi-termo na API real e conferência de links nas seis fontes.
+
 ### Modelo e segurança
 
 A tabela `public.jobs` mantém a chave natural única `(source, external_id)`, dados padronizados de modalidade (`remote`, `hybrid`, `onsite`, `unknown`), senioridade, contrato, localização, remuneração opcional, links e timestamps.
