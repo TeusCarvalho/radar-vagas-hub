@@ -9,7 +9,7 @@ const API_BASE = "https://boards-api.greenhouse.io/v1/boards";
 const BOARDS_FILE = path.join(__dirname, "greenhouse-boards.txt");
 const OUTPUT_FILE = path.join(__dirname, "greenhouse-results.json");
 
-const WINDOW_DAYS = 15;
+const WINDOW_DAYS = 7;
 const BOARD_CONCURRENCY = 5;
 const DETAIL_CONCURRENCY = 8;
 const REQUEST_TIMEOUT_MS = 15_000;
