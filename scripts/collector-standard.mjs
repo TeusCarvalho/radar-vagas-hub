@@ -1,4 +1,4 @@
-export const WINDOW_DAYS = 15;
+export const WINDOW_DAYS = 7;
 
 export const STANDARD_CATEGORIES = [
   "Dados e Analytics",
