@@ -15,6 +15,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { relativeDate } from "@/lib/format";
+import { safeJobApplicationUrl } from "@/lib/job-url";
 import { jobsRepository } from "@/services/jobsRepository";
 import { CONTRACT_LABELS, SENIORITY_LABELS, SOURCE_LABELS, WORKPLACE_LABELS } from "@/types/job";
 import type { Job } from "@/types/job";
@@ -153,6 +154,7 @@ function formatSalary(job: Job): string | null {
 function JobDetailPage() {
   const { job } = Route.useLoaderData();
   const salary = formatSalary(job);
+  const safeUrl = safeJobApplicationUrl(job.applicationUrl);
 
   return (
     <PageShell>
@@ -175,12 +177,14 @@ function JobDetailPage() {
             <p className="mt-2 text-base font-medium text-foreground">{job.company}</p>
           </div>
 
-          <Button asChild>
-            <a href={job.applicationUrl} target="_blank" rel="noopener noreferrer">
-              Ver vaga original
-              <ExternalLink className="ml-2 size-4" aria-hidden="true" />
-            </a>
-          </Button>
+          {safeUrl && (
+            <Button asChild>
+              <a href={safeUrl} target="_blank" rel="noopener noreferrer">
+                Ver vaga original
+                <ExternalLink className="ml-2 size-4" aria-hidden="true" />
+              </a>
+            </Button>
+          )}
         </div>
 
         <div className="mt-8 grid gap-5 border-t border-border pt-6 sm:grid-cols-2">
@@ -248,12 +252,18 @@ function JobDetailPage() {
         </div>
 
         <div className="mt-6">
-          <Button asChild>
-            <a href={job.applicationUrl} target="_blank" rel="noopener noreferrer">
-              Acessar página oficial da vaga
-              <ExternalLink className="ml-2 size-4" aria-hidden="true" />
-            </a>
-          </Button>
+          {safeUrl ? (
+            <Button asChild>
+              <a href={safeUrl} target="_blank" rel="noopener noreferrer">
+                Acessar página oficial da vaga
+                <ExternalLink className="ml-2 size-4" aria-hidden="true" />
+              </a>
+            </Button>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              O link original desta vaga está indisponível.
+            </p>
+          )}
         </div>
       </article>
     </PageShell>
