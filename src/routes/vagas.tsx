@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { jobsRepository } from "@/services/jobsRepository";
 import { JOBS_PER_PAGE } from "@/services/jobs-query";
+import { searchLocalPreviewJobs } from "@/services/devLocalCatalog";
 
 import type {
   ContractType,
@@ -41,6 +42,7 @@ interface VagasSearch {
   origem: string;
   ordem: string;
   pagina: number;
+  previa: string;
 }
 
 type VagasSearchInput = Partial<VagasSearch>;
@@ -71,6 +73,7 @@ export const Route = createFileRoute("/vagas")({
     // Até lá, não anunciamos um critério que a consulta não executa.
     ordem: "recentes",
     pagina: positiveInt(search.pagina, 1),
+    previa: search.previa === "local" ? "local" : "",
   }),
 
   head: () => ({
@@ -130,9 +133,12 @@ function VagasPage() {
     pageSize: JOBS_PER_PAGE,
   };
 
+  const isLocalPreview = import.meta.env.DEV && search.previa === "local";
+
   const { data, isPending, isError, error, refetch } = useQuery({
-    queryKey: ["jobs", query],
-    queryFn: () => jobsRepository.search(query),
+    queryKey: ["jobs", isLocalPreview ? "preview-local" : "supabase", query],
+    queryFn: () =>
+      isLocalPreview ? searchLocalPreviewJobs(query) : jobsRepository.search(query),
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -213,6 +219,7 @@ function VagasPage() {
         origem: "todos",
         ordem: "recentes",
         pagina: 1,
+        previa: search.previa,
       },
     });
   };
@@ -294,6 +301,36 @@ function VagasPage() {
             Buscar vagas
           </Button>
         </form>
+
+        {import.meta.env.DEV && (
+          <div
+            className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand-soft/30 p-4"
+            role="status"
+          >
+            <p className="text-sm text-foreground">
+              {isLocalPreview
+                ? "Prévia local ativa: resultados do radar-jobs.json. Nenhuma vaga foi enviada ao Supabase."
+                : "O banco de produção ainda não recebeu o novo catálogo. Você pode visualizar os dados locais."}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                navigate({
+                  to: ".",
+                  search: (prev) => ({
+                    ...prev,
+                    previa: isLocalPreview ? "" : "local",
+                    pagina: 1,
+                  }),
+                })
+              }
+            >
+              {isLocalPreview ? "Voltar à consulta Supabase" : "Prévia das vagas locais"}
+            </Button>
+          </div>
+        )}
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[280px_1fr]">
           <div className="lg:sticky lg:top-24 lg:self-start">
@@ -393,7 +430,7 @@ function VagasPage() {
               <>
                 <div className="mt-4 space-y-4">
                   {paginatedJobs.map((job) => (
-                    <JobCard key={job.id} job={job} />
+                    <JobCard key={job.id} job={job} isLocalPreview={isLocalPreview} />
                   ))}
                 </div>
 
