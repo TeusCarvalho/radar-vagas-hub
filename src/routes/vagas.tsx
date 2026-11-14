@@ -222,6 +222,7 @@ function VagasPage() {
   };
 
   const clearAll = () => {
+    setTerm("");
     navigate({
       to: ".",
 
@@ -269,9 +270,10 @@ function VagasPage() {
     });
 
     if (typeof window !== "undefined") {
-      window.scrollTo({
-        top: 0,
+      // Na paginação, manter o foco nos resultados em vez de voltar ao topo.
+      document.getElementById("resultados-vagas")?.scrollIntoView({
         behavior: "smooth",
+        block: "start",
       });
     }
   };
@@ -383,7 +385,7 @@ function VagasPage() {
           </div>
         )}
 
-        <section className="mt-5" aria-label="Resultados de vagas">
+        <section id="resultados-vagas" className="mt-5 scroll-mt-24" aria-label="Resultados de vagas">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
             <div>
               <h2 className="text-base font-bold text-foreground" aria-live="polite">
