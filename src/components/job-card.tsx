@@ -132,7 +132,7 @@ export function JobCard({
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground sm:text-sm">
-          <span>{SOURCE_LABELS[job.source]}</span>
+          <span>Via {SOURCE_LABELS[job.source]}</span>
           {deadline && (
             <span className="inline-flex items-center gap-1 text-brand">
               <CalendarDays className="size-3.5" aria-hidden="true" />
@@ -142,7 +142,12 @@ export function JobCard({
         </div>
         {safeUrl ? (
           <Button asChild size="sm" className="max-sm:w-full">
-            <a href={safeUrl} target="_blank" rel="noopener noreferrer">
+            <a
+              href={safeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Ver vaga original: ${job.title} em ${job.company} (abre em nova aba)`}
+            >
               Ver vaga original
               <ArrowUpRight className="size-4" aria-hidden="true" />
             </a>
