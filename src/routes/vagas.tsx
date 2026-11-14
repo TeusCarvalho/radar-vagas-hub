@@ -19,15 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
 import { jobsRepository } from "@/services/jobsRepository";
+import { JOBS_PER_PAGE } from "@/services/jobs-query";
 
 import type {
   ContractType,
@@ -37,8 +30,6 @@ import type {
   SortOption,
   WorkplaceType,
 } from "@/types/job";
-
-const JOBS_PER_PAGE = 20;
 
 interface VagasSearch {
   q: string;
@@ -76,7 +67,9 @@ export const Route = createFileRoute("/vagas")({
     area: str(search.area, "todos"),
     contrato: str(search.contrato, "todos"),
     origem: str(search.origem, "todos"),
-    ordem: str(search.ordem, "recentes"),
+    // Ordenação por relevância requer índice/ranqueamento no banco.
+    // Até lá, não anunciamos um critério que a consulta não executa.
+    ordem: "recentes",
     pagina: positiveInt(search.pagina, 1),
   }),
 
@@ -133,10 +126,12 @@ function VagasPage() {
     source: search.origem as JobSource | "todos",
 
     sort: search.ordem as SortOption,
+    page: search.pagina,
+    pageSize: JOBS_PER_PAGE,
   };
 
   const { data, isPending, isError, refetch } = useQuery({
-    queryKey: ["jobs", search],
+    queryKey: ["jobs", query],
     queryFn: () => jobsRepository.search(query),
   });
 
@@ -169,25 +164,24 @@ function VagasPage() {
   const hasActiveFilters =
     Object.values(filters).some((value) => value !== "todos") || search.q.length > 0;
 
-  /*
-   * Paginação
-   */
-  const allJobs = data?.jobs ?? [];
-  const totalJobs = data?.total ?? allJobs.length;
-
+  // Cada consulta já retorna somente a página solicitada pelo servidor.
+  const paginatedJobs = data?.jobs ?? [];
+  const totalJobs = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE));
-
   const currentPage = Math.min(Math.max(search.pagina, 1), totalPages);
+  const firstVisible = totalJobs === 0 ? 0 : (currentPage - 1) * JOBS_PER_PAGE + 1;
+  const lastVisible = Math.min(currentPage * JOBS_PER_PAGE, totalJobs);
 
-  const startIndex = (currentPage - 1) * JOBS_PER_PAGE;
-
-  const endIndex = startIndex + JOBS_PER_PAGE;
-
-  const paginatedJobs = allJobs.slice(startIndex, endIndex);
-
-  const firstVisible = totalJobs === 0 ? 0 : startIndex + 1;
-
-  const lastVisible = Math.min(endIndex, totalJobs);
+  // URLs antigas com ?pagina=9999 não devem apresentar uma página vazia.
+  useEffect(() => {
+    if (!isPending && !isError && data && search.pagina > totalPages) {
+      navigate({
+        to: ".",
+        replace: true,
+        search: (prev) => ({ ...prev, pagina: 1 }),
+      });
+    }
+  }, [data, isPending, isError, search.pagina, totalPages, navigate]);
 
   const updateFilter = (key: keyof FilterState, value: string) => {
     navigate({
@@ -263,11 +257,11 @@ function VagasPage() {
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
         <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
-          Vagas abertas
+          Vagas recentes
         </h1>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          Pesquise por cargo, palavra-chave ou empresa e refine com os filtros.
+          Oportunidades publicadas nos últimos 7 dias. Confira na fonte se a candidatura está aberta.
         </p>
 
         <form
@@ -317,7 +311,9 @@ function VagasPage() {
                 <p className="text-sm font-semibold text-foreground" aria-live="polite">
                   {isPending
                     ? "Carregando vagas…"
-                    : `${totalJobs} ${totalJobs === 1 ? "vaga encontrada" : "vagas encontradas"}`}
+                    : isError
+                      ? "Falha ao carregar vagas"
+                      : `${totalJobs} ${totalJobs === 1 ? "vaga encontrada" : "vagas encontradas"}`}
                 </p>
 
                 {!isPending && !isError && totalJobs > 0 && (
@@ -327,39 +323,9 @@ function VagasPage() {
                 )}
               </div>
 
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="size-4 text-muted-foreground" aria-hidden="true" />
-
-                <Label htmlFor="ordenacao" className="sr-only">
-                  Ordenar por
-                </Label>
-
-                <Select
-                  value={search.ordem}
-                  onValueChange={(value) =>
-                    navigate({
-                      to: ".",
-
-                      search: (prev) => ({
-                        ...prev,
-                        ordem: value,
-
-                        // Mudou ordenação -> página 1
-                        pagina: 1,
-                      }),
-                    })
-                  }
-                >
-                  <SelectTrigger id="ordenacao" className="h-9 w-[180px] bg-surface">
-                    <SelectValue />
-                  </SelectTrigger>
-
-                  <SelectContent>
-                    <SelectItem value="recentes">Mais recentes</SelectItem>
-
-                    <SelectItem value="relevancia">Relevância</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <SlidersHorizontal className="size-4" aria-hidden="true" />
+                <span>Mais recentes</span>
               </div>
             </div>
 
@@ -401,12 +367,16 @@ function VagasPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Tente outras palavras-chave ou remova alguns filtros.
+                  {hasActiveFilters
+                    ? "Tente outras palavras-chave ou remova alguns filtros."
+                    : "Não há vagas cadastradas nos últimos 7 dias. O catálogo pode estar aguardando atualização."}
                 </p>
 
-                <Button variant="outline" className="mt-4" onClick={clearAll}>
-                  Limpar filtros
-                </Button>
+                {hasActiveFilters && (
+                  <Button variant="outline" className="mt-4" onClick={clearAll}>
+                    Limpar filtros
+                  </Button>
+                )}
               </div>
             )}
 
