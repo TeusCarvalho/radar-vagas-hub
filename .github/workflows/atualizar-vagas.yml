@@ -246,8 +246,17 @@ jobs:
           );
           NODE
 
-      - name: Sincronizar Supabase
+      # Bloqueado por padrão. Habilitar a variável de repositório SOMENTE
+      # após backup validado, ajuste da constraint InfoJobs e aprovação do deploy.
+      - name: Sincronizar Supabase (ativação explícita)
+        if: ${{ vars.RADAR_ENABLE_PRODUCTION_SYNC == 'true' }}
         run: node scripts/sync-supabase.mjs --apply
+
+      - name: Publicação bloqueada por segurança
+        if: ${{ vars.RADAR_ENABLE_PRODUCTION_SYNC != 'true' }}
+        run: |
+          echo "Coleta e merge concluídos; sincronização de produção propositalmente desativada."
+          echo "Para liberar: backup validado, constraint InfoJobs e aprovação explícita."
 
       - name: Resumo da execução
         if: always()
