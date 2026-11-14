@@ -77,7 +77,13 @@ function getDeadlineInfo(value?: string | null) {
   };
 }
 
-export function JobCard({ job }: { job: Job }) {
+export function JobCard({
+  job,
+  isLocalPreview = false,
+}: {
+  job: Job;
+  isLocalPreview?: boolean;
+}) {
   const deadline = getDeadlineInfo(job.applicationDeadline);
 
   const skills = (job.skills ?? []).filter(Boolean).slice(0, 4);
@@ -89,13 +95,24 @@ export function JobCard({ job }: { job: Job }) {
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div className="min-w-0">
           <h2 className="text-lg font-bold leading-tight text-foreground">
-            <Link
-              to="/vagas/$jobId"
-              params={{ jobId: job.id }}
-              className="transition-colors hover:text-brand"
-            >
-              {job.title}
-            </Link>
+            {isLocalPreview ? (
+              <a
+                href={job.applicationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors hover:text-brand"
+              >
+                {job.title}
+              </a>
+            ) : (
+              <Link
+                to="/vagas/$jobId"
+                params={{ jobId: job.id }}
+                className="transition-colors hover:text-brand"
+              >
+                {job.title}
+              </Link>
+            )}
           </h2>
 
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
@@ -169,10 +186,17 @@ export function JobCard({ job }: { job: Job }) {
 
       <div className="mt-5">
         <Button asChild size="sm">
-          <Link to="/vagas/$jobId" params={{ jobId: job.id }}>
-            Ver detalhes
-            <ArrowUpRight className="size-4" aria-hidden="true" />
-          </Link>
+          {isLocalPreview ? (
+            <a href={job.applicationUrl} target="_blank" rel="noopener noreferrer">
+              Ver vaga original
+              <ArrowUpRight className="size-4" aria-hidden="true" />
+            </a>
+          ) : (
+            <Link to="/vagas/$jobId" params={{ jobId: job.id }}>
+              Ver detalhes
+              <ArrowUpRight className="size-4" aria-hidden="true" />
+            </Link>
+          )}
         </Button>
       </div>
     </article>
