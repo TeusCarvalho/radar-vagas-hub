@@ -179,10 +179,14 @@ function VagasPage() {
 
   const appliedFilterCount = Object.values(filters).filter((value) => value !== "todos").length;
   const hasActiveFilters = appliedFilterCount > 0 || search.q.length > 0;
-  const [showFilters, setShowFilters] = useState(
-    [search.nivel, search.estado, search.area, search.contrato, search.origem]
-      .some((value) => value !== "todos"),
-  );
+  const hasDetailedFilters = [
+    search.nivel, search.estado, search.area, search.contrato, search.origem,
+  ].some((value) => value !== "todos");
+  const [showFilters, setShowFilters] = useState(hasDetailedFilters);
+
+  useEffect(() => {
+    if (hasDetailedFilters) setShowFilters(true);
+  }, [hasDetailedFilters]);
 
   // Cada consulta já retorna somente a página solicitada pelo servidor.
   const paginatedJobs = data?.jobs ?? [];
