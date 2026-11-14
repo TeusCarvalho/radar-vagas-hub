@@ -1,11 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildGupySearchUrl, extractGupyRows } from "./gupy-api.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const BASE_URL = "https://employability-portal.gupy.io/api/v1/jobs";
 const OUTPUT_FILE = path.join(__dirname, "gupy-results.json");
 
 const PAGE_SIZE = 100;
@@ -688,35 +688,7 @@ async function fetchJson(url, retries = MAX_RETRIES) {
 }
 
 async function fetchJobs(offset = 0, filters = {}) {
-  const url = new URL(BASE_URL);
-
-  url.searchParams.set("offset", String(offset));
-  url.searchParams.set("limit", String(PAGE_SIZE));
-  url.searchParams.set("sortBy", "publishedDate");
-
-  for (const [key, value] of Object.entries(filters)) {
-    if (value !== undefined && value !== null && value !== "") {
-      url.searchParams.set(key, String(value));
-    }
-  }
-
-  return fetchJson(url);
-}
-
-function extractJobs(data) {
-  if (Array.isArray(data?.data)) {
-    return data.data;
-  }
-
-  if (Array.isArray(data?.results)) {
-    return data.results;
-  }
-
-  if (Array.isArray(data)) {
-    return data;
-  }
-
-  return [];
+  return fetchJson(buildGupySearchUrl(offset, PAGE_SIZE, filters));
 }
 
 function addJobsToMap(jobs, byId) {
@@ -750,7 +722,7 @@ async function collectPartition(label, filters, byId) {
 
   while (true) {
     const data = await fetchJobs(offset, filters);
-    const jobs = extractJobs(data);
+    const jobs = extractGupyRows(data);
     const newOnPage = addJobsToMap(jobs, byId);
 
     received += jobs.length;
@@ -926,6 +898,9 @@ async function main() {
   console.log("====================================");
 
   const rawJobs = await collectAllJobs();
+  if (rawJobs.length === 0) {
+    throw new Error("Gupy retornou um catálogo vazio; a coleta não será publicada.");
+  }
   const mappedJobs = rawJobs.map(mapGupyJob);
 
   const recentJobs = [];
