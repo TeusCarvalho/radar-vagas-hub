@@ -134,6 +134,12 @@ Alterações realizadas no PR **sem executar gravação em produção**:
 
 O workflow de produção mantém `RADAR_ENABLE_PRODUCTION_SYNC` desativado por padrão. **Não ativar automação nem merge com SQL pendente sem decisão explícita sobre a postura de segurança desejada**.
 
+### Redução de exposição de segredos no CI
+
+Na auditoria do workflow de atualização havia outro risco: `SUPABASE_SECRET_KEY` era configurada no ambiente **do job inteiro**. Isso expunha a credencial administrativa também aos processos de `npm ci`, de cache e de coleta, embora eles não precisem dela.
+
+A branch do PR foi corrigida para disponibilizar `SUPABASE_SECRET_KEY` e `SUPABASE_URL` **somente nas etapas de validação das credenciais e sincronização autorizada**, com `RADAR_ENABLE_PRODUCTION_SYNC == 'true'`. As demais etapas não recebem a chave. Nenhuma rotação de chaves ou alteração de Secrets foi executada.
+
 ## 7. Itens fora do escopo e validação final
 
 Não foi possível verificar por estes acessos: valores dos GitHub Actions Secrets, Cloudflare em execução, configurações de MFA das contas, histórico integral de credenciais já removidas, ou simular um ataque real à API pública. A auditoria cobre políticas, grants, código atual e evidências de CI, não substitui pentest independente.
