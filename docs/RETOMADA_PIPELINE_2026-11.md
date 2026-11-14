@@ -30,16 +30,19 @@ a URL antiga `employability-portal.gupy.io/api/v1/jobs` deixou de atender.
 desativação de registros ausentes e exclusão física por janela de 15 dias.
 Não executar para validar apenas o endpoint.
 
-## Validação InHire (14/11/2026)
+## Critério de recência preservado
 
-Na primeira coleta local, foram consultadas 8.725 vagas do índice, mas a fonte
-utilizava a janela compartilhada de apenas 7 dias. Foram obtidas 685 vagas
-válidas nessa janela e 24 tenants apresentaram HTTP 404. O cache de datas
-`published_at` foi aquecido com 8.725 entradas.
+A janela de 7 dias em `scripts/collector-standard.mjs` é uma decisão
+intencional do projeto para InHire e InfoJobs: reduzir o risco de listar
+anúncios antigos que continuam publicados por muito tempo. Por solicitação
+do proprietário, esse valor **não deve ser ampliado automaticamente**.
 
-A constante `WINDOW_DAYS` em `scripts/collector-standard.mjs` foi alinhada
-para 15 dias (impacta InHire e InfoJobs). É necessário refazer a coleta InHire
-após atualizar a branch local, aproveitar o cache disponível e validar o novo
-volume antes de qualquer sincronização. Os 24 tenants que falharam precisam
-ser revisados separadamente, sem inventar datas. A listagem do InfoJobs utiliza
-um filtro de antiguidade próprio da plataforma e exige auditoria de cobertura.
+Na validação da InHire em 14/11/2026 foram encontradas 685 vagas válidas
+com publicação dentro de 7 dias, 8.725 registros no índice e 24 tenants com
+HTTP 404. A coleta concluiu sem itens inválidos. Os 404 são uma pendência de
+cobertura, não motivo para alterar a janela de publicação.
+
+Nota: os demais coletores mantêm suas próprias janelas de 15 dias, que
+exigem decisão de produto separada caso se deseje uniformizar a recência.
+A idade da publicação não comprova, isoladamente, que a candidatura
+continua aberta.
