@@ -18,7 +18,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Pesquise oportunidades públicas de emprego agregadas de Gupy, InHire, Greenhouse, Lever e Ashby. O Radar Vagas direciona você para a página oficial da vaga.",
+          "Pesquise oportunidades públicas de emprego agregadas de Gupy, InHire, Greenhouse, Lever, Ashby e InfoJobs. O Radar Vagas direciona você para a página oficial da vaga.",
       },
       {
         property: "og:title",
@@ -120,9 +120,9 @@ function HomePage() {
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             <article className="rounded-2xl border border-border bg-card p-6">
               <Database className="size-5 text-brand" aria-hidden="true" />
-              <h3 className="mt-4 font-semibold text-foreground">Cinco fontes integradas</h3>
+              <h3 className="mt-4 font-semibold text-foreground">Seis fontes integradas</h3>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Gupy, InHire, Greenhouse, Lever e Ashby são normalizadas em um único catálogo.
+                Gupy, InHire, Greenhouse, Lever, Ashby e InfoJobs em um único catálogo.
               </p>
             </article>
 
@@ -151,7 +151,7 @@ function HomePage() {
             </p>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               O catálogo principal mantém vagas com data confiável publicadas dentro da janela
-              padrão dos últimos 15 dias.
+              padrão dos últimos 7 dias.
             </p>
           </div>
         </section>
