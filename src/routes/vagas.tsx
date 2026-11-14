@@ -133,7 +133,15 @@ function VagasPage() {
     pageSize: JOBS_PER_PAGE,
   };
 
-  const isLocalPreview = import.meta.env.DEV && search.previa === "local";
+  // Sem configuração pública do Supabase, o ambiente DEV abre o catálogo
+  // local automaticamente. A versão de produção nunca utiliza essa prévia.
+  const hasSupabaseConfig = Boolean(
+    import.meta.env.VITE_SUPABASE_URL?.trim() &&
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim(),
+  );
+  const isAutomaticLocalPreview = import.meta.env.DEV && !hasSupabaseConfig;
+  const isLocalPreview =
+    import.meta.env.DEV && (isAutomaticLocalPreview || search.previa === "local");
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ["jobs", isLocalPreview ? "preview-local" : "supabase", query],
@@ -330,27 +338,35 @@ function VagasPage() {
             role="status"
           >
             <p className="text-sm text-foreground">
-              {isLocalPreview
-                ? "Prévia local ativa: resultados do radar-jobs.json. Nenhuma vaga foi enviada ao Supabase."
-                : "O banco de produção ainda não recebeu o novo catálogo. Você pode visualizar os dados locais."}
+              {isAutomaticLocalPreview
+                ? "Prévia local automática: o Supabase não está configurado neste computador. As vagas vêm do radar-jobs.json, sem gravações no banco."
+                : isLocalPreview
+                  ? "Prévia local ativa: resultados do radar-jobs.json. Nenhuma vaga foi enviada ao Supabase."
+                  : "Consulta Supabase ativa. Você também pode visualizar o catálogo local sem alterar o banco."}
             </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                navigate({
-                  to: ".",
-                  search: (prev) => ({
-                    ...prev,
-                    previa: isLocalPreview ? "" : "local",
-                    pagina: 1,
-                  }),
-                })
-              }
-            >
-              {isLocalPreview ? "Voltar à consulta Supabase" : "Prévia das vagas locais"}
-            </Button>
+            {isAutomaticLocalPreview ? (
+              <span className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
+                Somente desenvolvimento
+              </span>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  navigate({
+                    to: ".",
+                    search: (prev) => ({
+                      ...prev,
+                      previa: isLocalPreview ? "" : "local",
+                      pagina: 1,
+                    }),
+                  })
+                }
+              >
+                {isLocalPreview ? "Voltar à consulta Supabase" : "Prévia das vagas locais"}
+              </Button>
+            )}
           </div>
         )}
 
