@@ -68,6 +68,11 @@ export interface JobQuery {
   source?: JobSource | "todos";
 
   sort?: SortOption;
+
+  /** Página 1-based para consulta no servidor. */
+  page?: number;
+  /** Quantidade máxima por página, limitada a 20. */
+  pageSize?: number;
 }
 
 export interface JobQueryResult {
