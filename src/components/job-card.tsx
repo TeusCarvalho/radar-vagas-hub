@@ -3,6 +3,7 @@ import { ArrowUpRight, Building2, CalendarDays, MapPin } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { relativeDate } from "@/lib/format";
+import { safeJobApplicationUrl } from "@/lib/job-url";
 import {
   CONTRACT_LABELS,
   SENIORITY_LABELS,
@@ -57,17 +58,6 @@ function getDeadlineInfo(value?: string | null) {
       : null;
 }
 
-function safeApplicationUrl(value: string): string | null {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "https:" || parsed.protocol === "http:"
-      ? parsed.toString()
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 export function JobCard({
   job,
   isLocalPreview = false,
@@ -75,7 +65,7 @@ export function JobCard({
   job: Job;
   isLocalPreview?: boolean;
 }) {
-  const safeUrl = safeApplicationUrl(job.applicationUrl);
+  const safeUrl = safeJobApplicationUrl(job.applicationUrl);
   const deadline = getDeadlineInfo(job.applicationDeadline);
 
   return (
