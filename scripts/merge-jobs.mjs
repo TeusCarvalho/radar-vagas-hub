@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CATALOG_WINDOW_DAYS, publicCompanyName, publicationExclusionReason, isUnidentifiedCompany } from "./catalog-policy.mjs";
+import { refineCategory } from "./category-title-rules.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -166,7 +167,7 @@ function sanitizeForPublic(job, nowIso) {
     external_id: String(job.external_id ?? "").trim(),
     title: String(job.title ?? "").trim(),
     company: publicCompanyName(job.source, job.company),
-    category: job.category ?? "Outros",
+    category: refineCategory(job.title, job.category),
     seniority: job.seniority ?? "nao_informado",
     workplace_type: job.workplace_type ?? "unknown",
     source_workplace_type: job.source_workplace_type ?? null,
@@ -489,9 +490,11 @@ async function main() {
 
   const publicJobs = [];
   const invalidJobs = [];
+  let correctedCategoryCount = 0;
 
   for (const rawJob of deduped) {
     const job = sanitizeForPublic(rawJob, nowIso);
+    if (job.category !== (rawJob.category ?? "Outros")) correctedCategoryCount++;
     const errors = validate(job);
 
     if (errors.length) {
@@ -529,6 +532,7 @@ async function main() {
     duplicate_same_source: internalDuplicates,
     duplicate_cross_source: duplicateGroups.length,
     invalid_after_merge: invalidJobs.length,
+    category_corrections_from_title: correctedCategoryCount,
     total_public: publicJobs.length,
     missing_files: missingFiles,
     duplicate_groups: duplicateGroups,
@@ -546,6 +550,7 @@ async function main() {
   console.log(`Vagas elegíveis (7 dias):    ${all.length}`);
   console.log(`Descartadas pela política:   ${report.total_collected - all.length}`);
   console.log(`InfoJobs empresa confidencial: ${confidentialInfoJobs}`);
+  console.log(`Categorias corrigidas pelo cargo: ${correctedCategoryCount}`);
   console.log(`Duplicadas na mesma fonte:    ${internalDuplicates}`);
   console.log(`Duplicadas entre plataformas: ${duplicateGroups.length}`);
   console.log(`Inválidas após merge:         ${invalidJobs.length}`);
