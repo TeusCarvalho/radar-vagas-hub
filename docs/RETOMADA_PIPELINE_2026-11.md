@@ -26,9 +26,12 @@ a URL antiga `employability-portal.gupy.io/api/v1/jobs` deixou de atender.
    desatualizado, antes de liberar `sync-supabase.mjs --apply`.
 4. Confirmar a configuração do agendamento do GitHub Actions após o merge.
 
-**Atenção:** `sync-supabase.mjs --apply` ainda executa atualização em lote,
-desativação de registros ausentes e exclusão física por janela de 15 dias.
-Não executar para validar apenas o endpoint.
+**Atenção (revisado em 14/11/2026):** `sync-supabase.mjs --apply`
+agora executa upserts, sem desativação em massa ou exclusão física por padrão.
+As opções `--deactivate-absent` e `--purge-expired` são separadas e
+permanecem proibidas até termos backup testado. A execução agendada está
+bloqueada por `RADAR_ENABLE_PRODUCTION_SYNC` e o PR segue em rascunho.
+Não executar `--apply` para validar somente o endpoint.
 
 ## Critério de recência preservado
 
@@ -42,10 +45,9 @@ com publicação dentro de 7 dias, 8.725 registros no índice e 24 tenants com
 HTTP 404. A coleta concluiu sem itens inválidos. Os 404 são uma pendência de
 cobertura, não motivo para alterar a janela de publicação.
 
-Nota: os demais coletores mantêm suas próprias janelas de 15 dias, que
-exigem decisão de produto separada caso se deseje uniformizar a recência.
-A idade da publicação não comprova, isoladamente, que a candidatura
-continua aberta.
+Atualização: o projeto foi posteriormente padronizado para 7 dias nas
+seis fontes e no merge final. A idade da publicação, isoladamente, não
+comprova que a candidatura continua aberta.
 
 ## Política unificada: 7 dias; InfoJobs com empresa não identificada
 
@@ -71,5 +73,5 @@ No frontend, a fonte InfoJobs é reconhecida e rotulada corretamente e as
 consultas ao Supabase limitam a busca aos últimos 7 dias. Assim, o site
 não expõe registros antigos ainda marcados como ativos em um banco desatualizado.
 
-**Não executar** `sync-supabase.mjs --apply` até validar o merge com os dados
-locais atualizados e definir backup/recuperação do banco.
+**Não executar** `sync-supabase.mjs --apply` antes de validar o backup
+e a migração InfoJobs. Consultar `docs/PREPARACAO_SUPABASE_PRODUCAO.md`.
