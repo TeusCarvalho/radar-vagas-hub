@@ -1,5 +1,5 @@
 import { ChevronDown, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -83,6 +83,11 @@ export function JobFilters({
   const advancedApplied = [value.contractType, value.source]
     .filter((item) => item !== "todos").length;
   const [showAdvanced, setShowAdvanced] = useState(advancedApplied > 0);
+
+  // Em navegação por URL/voltar do navegador, não ocultar filtros já aplicados.
+  useEffect(() => {
+    if (advancedApplied > 0) setShowAdvanced(true);
+  }, [advancedApplied]);
 
   const toOptions = (record: Record<string, string>) =>
     Object.entries(record)
