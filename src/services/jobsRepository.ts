@@ -288,7 +288,8 @@ export const supabaseJobsRepository: JobsRepository = {
     const { data, error, count } = await request
       .order("published_at", { ascending: false })
       .order("id", { ascending: true })
-      .range(plan.from, plan.to);
+      .range(plan.from, plan.to)
+      .abortSignal(AbortSignal.timeout(12_000));
 
     if (error) {
       throw new Error("Falha ao buscar vagas no Supabase: " + error.message);
@@ -314,7 +315,8 @@ export const supabaseJobsRepository: JobsRepository = {
       .eq("active", true)
       .gte("published_at", plan.publishedAfter)
       .lte("published_at", plan.publishedBefore)
-      .maybeSingle();
+      .maybeSingle()
+      .abortSignal(AbortSignal.timeout(12_000));
 
     if (error) {
       throw new Error("Falha ao carregar detalhe da vaga: " + error.message);
