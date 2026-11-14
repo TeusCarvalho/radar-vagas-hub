@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabase";
+import { BRAZIL_STATES, JOB_CATEGORIES, buildJobsPagePlan } from "./jobs-query";
 import type {
   ContractType,
   Job,
@@ -33,6 +34,14 @@ interface JobRow {
   seniority: string | null;
   workplace_type: string | null;
   contract_type: string | null;
+  source_workplace_type: string | null;
+  source_contract_type: string | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string | null;
+  salary_interval: string | null;
+  salary_description: string | null;
+  published_at_source: string | null;
   location_text: string | null;
   city: string | null;
   state: string | null;
@@ -57,6 +66,14 @@ const JOB_COLUMNS = [
   "seniority",
   "workplace_type",
   "contract_type",
+  "source_workplace_type",
+  "source_contract_type",
+  "salary_min",
+  "salary_max",
+  "salary_currency",
+  "salary_interval",
+  "salary_description",
+  "published_at_source",
   "location_text",
   "city",
   "state",
@@ -70,16 +87,6 @@ const JOB_COLUMNS = [
   "last_seen_at",
   "active",
 ].join(",");
-
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const PAGE_SIZE = 1000;
-
-let cache: {
-  jobs: Job[];
-  expiresAt: number;
-} | null = null;
-
-let pendingLoad: Promise<Job[]> | null = null;
 
 const normalize = (value: string | null | undefined) =>
   String(value ?? "")
@@ -175,7 +182,7 @@ function rowToJob(row: JobRow): Job {
   const locationText =
     row.location_text ||
     [row.city, row.state].filter(Boolean).join(", ") ||
-    (workplaceType === "remote" ? "Remoto - Brasil" : "Local não informado");
+    (workplaceType === "remote" ? "Remoto · localidade não informada" : "Local não informado");
 
   const description =
     row.description?.trim() ||
@@ -202,13 +209,21 @@ function rowToJob(row: JobRow): Job {
 
     state: row.state ?? "",
 
-    country: row.country ?? "Brasil",
+    country: row.country ?? undefined,
 
     locationText,
 
     workplaceType,
 
     contractType: mapContract(row.contract_type),
+    sourceContractType: row.source_contract_type,
+    sourceWorkplaceType: row.source_workplace_type,
+
+    salaryMin: row.salary_min,
+    salaryMax: row.salary_max,
+    salaryCurrency: row.salary_currency,
+    salaryInterval: row.salary_interval,
+    salaryDescription: row.salary_description,
 
     seniority: mapSeniority(row.seniority, row.title),
 
@@ -221,6 +236,7 @@ function rowToJob(row: JobRow): Job {
     applicationDeadline: row.application_deadline,
 
     publishedAt,
+    publishedAtSource: row.published_at_source,
 
     firstSeenAt: row.first_seen_at,
 
@@ -230,188 +246,86 @@ function rowToJob(row: JobRow): Job {
   };
 }
 
-async function loadAllActiveJobs(): Promise<Job[]> {
-  if (cache && cache.expiresAt > Date.now()) {
-    return cache.jobs;
-  }
-
-  if (pendingLoad) {
-    return pendingLoad;
-  }
-
-  pendingLoad = (async () => {
-    const supabase = getSupabaseClient();
-
-    const rows: JobRow[] = [];
-
-    for (let from = 0; ; from += PAGE_SIZE) {
-      const to = from + PAGE_SIZE - 1;
-
-      const { data, error } = await supabase
-        .from("jobs")
-        .select(JOB_COLUMNS)
-        .eq("active", true)
-        // Escopo da API antes da paginação: evita carregar milhares de
-        // registros antigos, mesmo quando a última sincronização falhou.
-        .gte("published_at", new Date(Date.now() - 7 * 86_400_000).toISOString())
-        .lte("published_at", new Date().toISOString())
-        .order("published_at", {
-          ascending: false,
-        })
-        .range(from, to);
-
-      if (error) {
-        throw new Error(`Falha ao carregar vagas do Supabase: ${error.message}`);
-      }
-
-      const page = (data ?? []) as unknown as JobRow[];
-
-      rows.push(...page);
-
-      if (page.length < PAGE_SIZE) {
-        break;
-      }
-    }
-
-    const jobs = rows.map(rowToJob);
-
-    cache = {
-      jobs,
-      expiresAt: Date.now() + CACHE_TTL_MS,
-    };
-
-    return jobs;
-  })().finally(() => {
-    pendingLoad = null;
-  });
-
-  return pendingLoad;
-}
-
-function scoreJob(job: Job, terms: string[]): number {
-  if (terms.length === 0) {
-    return 0;
-  }
-
-  const title = normalize(job.title);
-
-  const company = normalize(job.company);
-
-  const skills = job.skills?.join(" ") ?? "";
-
-  const rest = normalize(
-    `${job.category} ${job.locationText} ${job.description} ${job.requirements.join(
-      " ",
-    )} ${skills}`,
-  );
-
-  return terms.reduce((score, term) => {
-    if (title.includes(term)) {
-      score += 10;
-    }
-
-    if (company.includes(term)) {
-      score += 6;
-    }
-
-    if (rest.includes(term)) {
-      score += 2;
-    }
-
-    return score;
-  }, 0);
-}
-
-function matches(job: Job, query: JobQuery, terms: string[]): boolean {
-  if (!job.active) {
-    return false;
-  }
-
-  if (terms.length > 0 && scoreJob(job, terms) === 0) {
-    return false;
-  }
-
-  if (
-    query.workplaceType &&
-    query.workplaceType !== "todos" &&
-    job.workplaceType !== query.workplaceType
-  ) {
-    return false;
-  }
-
-  if (query.seniority && query.seniority !== "todos" && job.seniority !== query.seniority) {
-    return false;
-  }
-
-  if (
-    query.contractType &&
-    query.contractType !== "todos" &&
-    job.contractType !== query.contractType
-  ) {
-    return false;
-  }
-
-  if (query.source && query.source !== "todos" && job.source !== query.source) {
-    return false;
-  }
-
-  if (query.state && query.state !== "todos" && job.state !== query.state) {
-    return false;
-  }
-
-  if (query.category && query.category !== "todos" && job.category !== query.category) {
-    return false;
-  }
-
-  return true;
-}
-
+/**
+ * Paginação e filtros executados no PostgreSQL, sem transferência do catálogo
+ * inteiro para o navegador. A consulta devolve no máximo 20 vagas por página.
+ *
+ * "Relevância" ainda depende de uma futura busca full-text no banco;
+ * por enquanto a ordenação real e declarada ao usuário é "mais recentes".
+ */
 export const supabaseJobsRepository: JobsRepository = {
   async search(query) {
-    const jobs = await loadAllActiveJobs();
+    const plan = buildJobsPagePlan(query);
+    let request = getSupabaseClient()
+      .from("jobs")
+      .select(JOB_COLUMNS, { count: "exact" })
+      .eq("active", true)
+      .gte("published_at", plan.publishedAfter)
+      .lte("published_at", plan.publishedBefore);
 
-    const terms = query.q ? normalize(query.q).split(/\s+/).filter(Boolean) : [];
+    if (query.workplaceType && query.workplaceType !== "todos") {
+      request = request.eq("workplace_type", query.workplaceType);
+    }
+    if (query.seniority && query.seniority !== "todos") {
+      request = request.eq("seniority", query.seniority);
+    }
+    if (query.contractType && query.contractType !== "todos") {
+      request = request.eq("contract_type", query.contractType);
+    }
+    if (query.source && query.source !== "todos" && query.source !== "unknown") {
+      request = request.eq("source", query.source);
+    }
+    if (query.state && query.state !== "todos") {
+      request = request.eq("state", query.state);
+    }
+    if (query.category && query.category !== "todos") {
+      request = request.eq("category", query.category);
+    }
+    if (plan.searchFilter) {
+      request = request.or(plan.searchFilter);
+    }
 
-    const filtered = jobs.filter((job) => matches(job, query, terms));
+    const { data, error, count } = await request
+      .order("published_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(plan.from, plan.to);
 
-    const sorted = [...filtered].sort((a, b) => {
-      if (query.sort === "relevancia" && terms.length > 0) {
-        const difference = scoreJob(b, terms) - scoreJob(a, terms);
-
-        if (difference !== 0) {
-          return difference;
-        }
-      }
-
-      return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
-    });
+    if (error) {
+      throw new Error("Falha ao buscar vagas no Supabase: " + error.message);
+    }
 
     return {
-      jobs: sorted,
-      total: sorted.length,
+      jobs: ((data ?? []) as JobRow[]).map(rowToJob),
+      total: count ?? 0,
     };
   },
 
   async getById(id) {
-    const jobs = await loadAllActiveJobs();
+    // A tabela usa identificadores UUID; evita consultas inválidas no PostgREST.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return null;
+    }
 
-    return jobs.find((job) => job.id === id) ?? null;
+    const plan = buildJobsPagePlan({});
+    const { data, error } = await getSupabaseClient()
+      .from("jobs")
+      .select(JOB_COLUMNS)
+      .eq("id", id)
+      .eq("active", true)
+      .gte("published_at", plan.publishedAfter)
+      .lte("published_at", plan.publishedBefore)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error("Falha ao carregar detalhe da vaga: " + error.message);
+    }
+    return data ? rowToJob(data as JobRow) : null;
   },
 
   async listFacets() {
-    const jobs = await loadAllActiveJobs();
-
-    const states = [...new Set(jobs.map((job) => job.state).filter(Boolean))].sort((a, b) =>
-      a.localeCompare(b, "pt-BR"),
-    );
-
-    const categories = [...new Set(jobs.map((job) => job.category).filter(Boolean))].sort((a, b) =>
-      a.localeCompare(b, "pt-BR"),
-    );
-
     return {
-      states,
-      categories,
+      states: [...BRAZIL_STATES],
+      categories: [...JOB_CATEGORIES],
     };
   },
 };
