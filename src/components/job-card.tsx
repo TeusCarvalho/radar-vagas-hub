@@ -110,7 +110,7 @@ export function JobCard({
             </span>
           </div>
         </div>
-        <p className="shrink-0 whitespace-nowrap text-xs text-muted-foreground sm:pt-1">
+        <p className="shrink-0 whitespace-nowrap text-xs text-muted-foreground sm:pt-1 sm:text-sm">
           {relativeDate(job.publishedAt)}
         </p>
       </div>
@@ -131,8 +131,8 @@ export function JobCard({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          <span>Fonte: {SOURCE_LABELS[job.source]}</span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground sm:text-sm">
+          <span>{SOURCE_LABELS[job.source]}</span>
           {deadline && (
             <span className="inline-flex items-center gap-1 text-brand">
               <CalendarDays className="size-3.5" aria-hidden="true" />
