@@ -130,9 +130,11 @@ function VagasPage() {
     pageSize: JOBS_PER_PAGE,
   };
 
-  const { data, isPending, isError, refetch } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ["jobs", query],
     queryFn: () => jobsRepository.search(query),
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: facets } = useQuery({
@@ -349,8 +351,15 @@ function VagasPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Ocorreu um erro na busca. Tente novamente em instantes.
+                  Não foi possível consultar as vagas. Verifique sua conexão e as configurações do Supabase.
+                  Se o problema continuar, consulte o console do navegador (F12) para identificar a causa.
                 </p>
+
+                {import.meta.env.DEV && error && (
+                  <p className="mt-3 break-words rounded-md border border-border p-3 text-left text-xs text-muted-foreground">
+                    Diagnóstico local: {error instanceof Error ? error.message : String(error)}
+                  </p>
+                )}
 
                 <Button className="mt-4" onClick={() => refetch()}>
                   Tentar novamente
