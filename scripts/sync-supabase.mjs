@@ -268,14 +268,16 @@ async function main() {
 
   if (!apply) {
     console.log("");
-    console.log("DRY RUN.");
+    console.log("DRY RUN LOCAL: catálogo válido, mas o esquema e a conexão do banco NÃO foram verificados.");
     console.log("Nenhuma alteração foi feita no Supabase.");
-    console.log("");
-    console.log("Para gravar:");
-    console.log("node .\\scripts\\sync-supabase.mjs --apply");
+    console.log("Antes de gravar: fazer backup verificável e habilitar a constraint InfoJobs no banco.");
+    console.log("A execução --apply exige avaliação separada dos riscos de upsert.");
     return;
   }
 
+  if (process.argv.includes("--purge-expired") && !process.argv.includes("--deactivate-absent")) {
+    throw new Error("--purge-expired exige --deactivate-absent. Abortando antes de conectar.");
+  }
   const { url, secret } = requiredConfig();
 
   const supabase = createClient(url, secret, {
@@ -289,7 +291,11 @@ async function main() {
   const syncStartedAt = new Date().toISOString();
   const syncStartedMs = Date.now();
 
-  const payload = jobs.map((job) => dbPayload(job, syncStartedAt));
+  // Valida primeiro uma fonte que ainda exige uma constraint de banco.
+  // Se InfoJobs não estiver autorizado, o PRIMEIRO lote falha antes de
+  // modificar qualquer registro das demais fontes. Não substitui preflight.
+  const payload = jobs.map((job) => dbPayload(job, syncStartedAt))
+    .sort((a, b) => Number(b.source === "infojobs") - Number(a.source === "infojobs"));
   const batches = chunks(payload, BATCH_SIZE);
 
   console.log("");
@@ -315,23 +321,35 @@ async function main() {
     console.log(`Lote ${index + 1}/${batches.length} OK | ${processed}/${payload.length}`);
   }
 
-  // Após TODOS os upserts concluírem, vagas que já estavam no banco
-  // mas não apareceram nesta execução deixam de ser públicas.
-  const { error: inactiveError } = await supabase
-    .from("jobs")
-    .update({ active: false })
-    .eq("active", true)
-    .lt("last_seen_at", syncStartedAt);
+  // PRIMEIRA PUBLICAÇÃO: não desativa registros antigos automaticamente.
+  // O frontend já mostra somente published_at dos últimos 7 dias.
+  // Depois da confirmação de backup e observabilidade, pode-se habilitar
+  // --deactivate-absent em um rollout separado.
+  const deactivateAbsent = process.argv.includes("--deactivate-absent");
 
-  if (inactiveError) {
-    throw new Error(
-      `Upsert concluído, mas falhou ao marcar vagas ausentes: ${inactiveError.message}`,
-    );
+  if (deactivateAbsent) {
+    const { error: inactiveError } = await supabase
+      .from("jobs")
+      .update({ active: false })
+      .eq("active", true)
+      .lt("last_seen_at", syncStartedAt);
+
+    if (inactiveError) {
+      throw new Error(
+        `Upsert concluído, mas falhou ao marcar vagas ausentes: ${inactiveError.message}`,
+      );
+    }
+  } else {
+    console.log("Desativação de vagas ausentes: desligada (rollout sem alteração em massa).");
   }
 
   // Exclusão física permanece DESLIGADA por padrão.
   // --purge-expired exige liberação separada, com backup verificado.
   const purgeExpired = process.argv.includes("--purge-expired");
+
+  if (purgeExpired && !deactivateAbsent) {
+    throw new Error("--purge-expired exige --deactivate-absent em execução separada, após backup.");
+  }
 
   if (purgeExpired) {
     const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -375,6 +393,7 @@ async function main() {
   console.log("====================================");
   console.log(`Upserts processados: ${processed}`);
   console.log(`Vagas ativas no Supabase: ${activeCount ?? "não informado"}`);
+  console.log(`Desativação de ausentes: ${deactivateAbsent ? "ativada" : "desativada"}`);
   console.log(`Janela de publicação: ${CATALOG_WINDOW_DAYS} dias`);
   console.log(
     `Retenção física: ${purgeExpired ? `exclusão dos registros com mais de ${RETENTION_DAYS} dias` : "desativada (sem exclusão)"}`,
