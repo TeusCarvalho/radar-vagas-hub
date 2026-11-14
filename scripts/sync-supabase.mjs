@@ -275,6 +275,22 @@ async function main() {
     return;
   }
 
+  const destructiveRequested =
+    process.argv.includes("--deactivate-absent") || process.argv.includes("--purge-expired");
+
+  // Segunda barreira: opções que desativam/excluem registros em massa
+  // não podem ser ativadas apenas pelo argumento de linha de comando.
+  // A rotina agendada usa somente --apply e não precisa desta variável.
+  if (
+    destructiveRequested &&
+    process.env.RADAR_ALLOW_DESTRUCTIVE_SYNC !== "YES_I_HAVE_A_VERIFIED_BACKUP"
+  ) {
+    throw new Error(
+      "Alterações em massa bloqueadas. Exigem autorização operacional, backup recente " +
+      "e RADAR_ALLOW_DESTRUCTIVE_SYNC=YES_I_HAVE_A_VERIFIED_BACKUP.",
+    );
+  }
+
   if (process.argv.includes("--purge-expired") && !process.argv.includes("--deactivate-absent")) {
     throw new Error("--purge-expired exige --deactivate-absent. Abortando antes de conectar.");
   }
