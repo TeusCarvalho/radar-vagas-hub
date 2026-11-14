@@ -16,6 +16,9 @@ export function getSupabaseClient(): SupabaseClient {
   }
 
   client = createClient(url, publishableKey, {
+    // Consultas de listagem: evitar tentativas internas prolongadas quando a
+    // conexão estiver indisponível. A UI oferece "Tentar novamente".
+    db: { retry: false },
     auth: {
       persistSession: false,
       autoRefreshToken: false,
