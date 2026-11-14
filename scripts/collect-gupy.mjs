@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildGupySearchUrl, extractGupyRows } from "./gupy-api.mjs";
+import { definitiveCategoryFromTitle } from "./category-title-rules.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -335,6 +336,8 @@ function inferSeniority(title) {
 }
 
 function inferCategory(title, description = "") {
+  const fromTitle = definitiveCategoryFromTitle(title);
+  if (fromTitle) return fromTitle;
   const text = normalizeText(`${title ?? ""} ${description ?? ""}`);
 
   const categories = [
