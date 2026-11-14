@@ -21,26 +21,35 @@ export const JOB_CATEGORIES = [
   "Design", "Outros",
 ].sort((a, b) => a.localeCompare(b, "pt-BR"));
 
-// .or() usa sintaxe PostgREST diretamente: removemos tokens especiais para
-// não permitir que o termo de busca introduza operadores ou filtros.
+// A pesquisa ignora conectivos comuns (ex.: "Analista de Dados") e
+// exige todas as palavras relevantes, mesmo que estejam em colunas diferentes.
+// Tokens são saneados antes de entrar na sintaxe PostgREST.
+const STOP_WORDS = new Set(["a", "o", "as", "os", "de", "da", "do", "das", "dos",
+  "e", "em", "com", "para", "por", "no", "na", "nos", "nas", "um", "uma"]);
+
 export function searchTerms(value: string | undefined): string[] {
-  return String(value ?? "")
+  const tokens = String(value ?? "")
     .normalize("NFKC")
     .slice(0, 120)
     .replace(/[^\p{L}\p{N}\s-]/gu, " ")
     .trim()
     .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 6);
+    .filter(Boolean);
+  const meaningful = tokens.filter((term) => !STOP_WORDS.has(term.toLowerCase()));
+  return (meaningful.length > 0 ? meaningful : tokens).slice(0, 6);
 }
 
 export function searchOrFilter(terms: string[]): string | null {
   if (terms.length === 0) return null;
 
-  const searchableColumns = ["title", "company", "category", "location_text", "city"];
-  return terms.flatMap(
-    (term) => searchableColumns.map((field) => field + ".ilike.%" + term + "%"),
-  ).join(",");
+  const columns = ["title", "company", "category", "location_text", "city"];
+  const alternatives = (term: string) =>
+    columns.map((column) => `${column}.ilike.%${term}%`).join(",");
+
+  if (terms.length === 1) return alternatives(terms[0]);
+
+  // .or('and(or(...),or(...))') agrupa alternativas por token e exige todos.
+  return `and(${terms.map((term) => `or(${alternatives(term)})`).join(",")})`;
 }
 
 export function buildJobsPagePlan(
