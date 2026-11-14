@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CONTRACT_LABELS, SENIORITY_LABELS, SOURCE_LABELS, WORKPLACE_LABELS } from "@/types/job";
+import { CONTRACT_LABELS, SENIORITY_LABELS, SOURCE_LABELS } from "@/types/job";
 
 export interface FilterState {
   workplaceType: string;
@@ -46,17 +46,16 @@ function FilterSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-
+    <div className="min-w-0 space-y-1.5">
+      <Label htmlFor={id} className="text-xs font-semibold text-muted-foreground">
+        {label}
+      </Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} className="w-full">
+        <SelectTrigger id={id} className="h-10 w-full bg-background">
           <SelectValue placeholder={allLabel} />
         </SelectTrigger>
-
         <SelectContent>
           <SelectItem value="todos">{allLabel}</SelectItem>
-
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
@@ -68,6 +67,11 @@ function FilterSelect({
   );
 }
 
+/**
+ * Painel horizontal: modalidade fica nos botões rápidos de /vagas,
+ * enquanto os três filtros essenciais ficam próximos aos resultados.
+ * Campos menos utilizados só aparecem ao expandir.
+ */
 export function JobFilters({
   value,
   states,
@@ -76,47 +80,39 @@ export function JobFilters({
   onChange,
   onClear,
 }: JobFiltersProps) {
-  const advancedApplied = [
-    value.category,
-    value.contractType,
-    value.source,
-  ].filter((item) => item !== "todos").length;
-
+  const advancedApplied = [value.contractType, value.source]
+    .filter((item) => item !== "todos").length;
   const [showAdvanced, setShowAdvanced] = useState(advancedApplied > 0);
 
   const toOptions = (record: Record<string, string>) =>
-    Object.entries(record).map(([key, label]) => ({
-      value: key,
-      label,
-    }));
+    Object.entries(record)
+      .filter(([key]) => key !== "nao_informado" && key !== "unknown")
+      .map(([key, label]) => ({ value: key, label }));
 
   return (
-    <aside
-      className="rounded-xl border border-border bg-card p-4 shadow-sm"
+    <section
+      className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5"
       aria-label="Filtros de vagas"
     >
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="font-semibold text-foreground">Filtros</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Refine os resultados</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Combine nível, localização e área para encontrar vagas relevantes.
+          </p>
+        </div>
         {hasActiveFilters && (
           <Button type="button" variant="ghost" size="sm" onClick={onClear} className="gap-1.5">
             <X className="size-4" aria-hidden="true" />
-            Limpar
+            Limpar tudo
           </Button>
         )}
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
-        <FilterSelect
-          id="filtro-modalidade"
-          label="Modalidade"
-          allLabel="Todas as modalidades"
-          value={value.workplaceType}
-          options={toOptions(WORKPLACE_LABELS)}
-          onChange={(v) => onChange("workplaceType", v)}
-        />
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <FilterSelect
           id="filtro-senioridade"
-          label="Senioridade"
+          label="Nível"
           allLabel="Todos os níveis"
           value={value.seniority}
           options={toOptions(SENIORITY_LABELS)}
@@ -130,34 +126,9 @@ export function JobFilters({
           options={states.map((state) => ({ value: state, label: state }))}
           onChange={(v) => onChange("state", v)}
         />
-      </div>
-
-      <button
-        type="button"
-        className="mt-4 flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
-        aria-expanded={showAdvanced}
-        aria-controls="filtros-avancados"
-        onClick={() => setShowAdvanced((current) => !current)}
-      >
-        <span>
-          Mais filtros
-          {advancedApplied > 0 && (
-            <span className="ml-2 text-xs font-normal text-brand">
-              ({advancedApplied} aplicado{advancedApplied > 1 ? "s" : ""})
-            </span>
-          )}
-        </span>
-        <ChevronDown className={`size-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`} aria-hidden="true" />
-      </button>
-
-      {showAdvanced && (
-        <div
-          id="filtros-avancados"
-          className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1"
-        >
         <FilterSelect
           id="filtro-area"
-          label="Área"
+          label="Área profissional"
           allLabel="Todas as áreas"
           value={value.category}
           options={categories.map((category) => ({
@@ -166,24 +137,43 @@ export function JobFilters({
           }))}
           onChange={(v) => onChange("category", v)}
         />
-        <FilterSelect
-          id="filtro-contrato"
-          label="Contrato"
-          allLabel="Todos os contratos"
-          value={value.contractType}
-          options={toOptions(CONTRACT_LABELS)}
-          onChange={(v) => onChange("contractType", v)}
+      </div>
+
+      <button
+        type="button"
+        className="mt-4 inline-flex items-center gap-2 rounded-md px-1 py-2 text-sm font-medium text-brand hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+        aria-expanded={showAdvanced}
+        aria-controls="filtros-avancados"
+        onClick={() => setShowAdvanced((current) => !current)}
+      >
+        {showAdvanced ? "Menos opções" : "Mais opções"}
+        {advancedApplied > 0 && <span>({advancedApplied})</span>}
+        <ChevronDown
+          className={`size-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
+          aria-hidden="true"
         />
-        <FilterSelect
-          id="filtro-origem"
-          label="Origem"
-          allLabel="Todas as plataformas"
-          value={value.source}
-          options={toOptions(SOURCE_LABELS)}
-          onChange={(v) => onChange("source", v)}
-        />
+      </button>
+
+      {showAdvanced && (
+        <div id="filtros-avancados" className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+          <FilterSelect
+            id="filtro-contrato"
+            label="Tipo de contrato"
+            allLabel="Todos os contratos"
+            value={value.contractType}
+            options={toOptions(CONTRACT_LABELS)}
+            onChange={(v) => onChange("contractType", v)}
+          />
+          <FilterSelect
+            id="filtro-origem"
+            label="Plataforma"
+            allLabel="Todas as plataformas"
+            value={value.source}
+            options={toOptions(SOURCE_LABELS)}
+            onChange={(v) => onChange("source", v)}
+          />
         </div>
       )}
-    </aside>
+    </section>
   );
 }
