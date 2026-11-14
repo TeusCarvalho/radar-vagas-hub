@@ -94,6 +94,9 @@ jobs:
           }
           NODE
 
+      - name: Bloquear vulnerabilidades altas ou criticas em runtime
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Verificar tipos TypeScript
         run: npx tsc --noEmit
       - name: Compilar frontend
