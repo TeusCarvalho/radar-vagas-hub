@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { CATALOG_WINDOW_DAYS, publicCompanyName, publicationExclusionReason, isUnidentifiedCompany } from "./catalog-policy.mjs";
+import { refineCategory } from "./category-title-rules.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -164,8 +166,8 @@ function sanitizeForPublic(job, nowIso) {
     source: String(job.source ?? "").trim(),
     external_id: String(job.external_id ?? "").trim(),
     title: String(job.title ?? "").trim(),
-    company: String(job.company ?? "").trim(),
-    category: job.category ?? "Outros",
+    company: publicCompanyName(job.source, job.company),
+    category: refineCategory(job.title, job.category),
     seniority: job.seniority ?? "nao_informado",
     workplace_type: job.workplace_type ?? "unknown",
     source_workplace_type: job.source_workplace_type ?? null,
@@ -239,18 +241,33 @@ async function main() {
 
   const all = [];
   const sourceCounts = {};
+  const eligibleSourceCounts = {};
+  const excludedByReason = {};
+  const excludedBySource = {};
   const missingFiles = [];
+  const nowMs = Date.parse(nowIso);
 
   for (const [source, file] of INPUTS) {
     try {
       const jobs = await readJson(file);
       sourceCounts[source] = jobs.length;
+      eligibleSourceCounts[source] = 0;
+      excludedBySource[source] = {};
 
       for (const job of jobs) {
+        const reason = publicationExclusionReason(job, nowMs, source);
+        if (reason) {
+          excludedByReason[reason] = (excludedByReason[reason] ?? 0) + 1;
+          excludedBySource[source][reason] = (excludedBySource[source][reason] ?? 0) + 1;
+          continue;
+        }
         all.push(job);
+        eligibleSourceCounts[source] += 1;
       }
 
-      console.log(`${source.padEnd(12)} ${String(jobs.length).padStart(6)} vagas`);
+      console.log(
+        `${source.padEnd(12)} ${String(jobs.length).padStart(6)} coletadas | ${eligibleSourceCounts[source]} elegíveis (${CATALOG_WINDOW_DAYS} dias)`,
+      );
     } catch (error) {
       if (error?.code === "ENOENT") {
         missingFiles.push(file);
@@ -263,8 +280,21 @@ async function main() {
     }
   }
 
+  if (missingFiles.length > 0) {
+    throw new Error(`Fontes ausentes: ${missingFiles.join(", ")}. Merge bloqueado para proteger o catálogo.`);
+  }
+
+  const emptySources = INPUTS.map(([source]) => source).filter(
+    (source) => (eligibleSourceCounts[source] ?? 0) === 0,
+  );
+  if (emptySources.length > 0) {
+    throw new Error(
+      `Fontes sem vagas elegíveis: ${emptySources.join(", ")}. Merge bloqueado para evitar desativação indevida.`,
+    );
+  }
+
   console.log("------------------------------------");
-  console.log(`Total bruto: ${all.length}`);
+  console.log(`Vagas elegíveis antes da deduplicação: ${all.length}`);
 
   // 1) Deduplicação absoluta dentro da própria fonte.
   const bySourceExternalId = new Map();
@@ -460,9 +490,11 @@ async function main() {
 
   const publicJobs = [];
   const invalidJobs = [];
+  let correctedCategoryCount = 0;
 
   for (const rawJob of deduped) {
     const job = sanitizeForPublic(rawJob, nowIso);
+    if (job.category !== (rawJob.category ?? "Outros")) correctedCategoryCount++;
     const errors = validate(job);
 
     if (errors.length) {
@@ -477,6 +509,10 @@ async function main() {
     }
   }
 
+  const confidentialInfoJobs = publicJobs.filter(
+    (job) => job.source === "infojobs" && isUnidentifiedCompany(job.company),
+  ).length;
+
   publicJobs.sort((a, b) => {
     const aTime = Date.parse(a.published_at ?? "") || 0;
     const bTime = Date.parse(b.published_at ?? "") || 0;
@@ -486,10 +522,17 @@ async function main() {
   const report = {
     generated_at: nowIso,
     inputs: sourceCounts,
+    publication_window_days: CATALOG_WINDOW_DAYS,
+    eligible_inputs: eligibleSourceCounts,
+    excluded_by_reason: excludedByReason,
+    excluded_by_source: excludedBySource,
+    infojobs_company_confidential: confidentialInfoJobs,
+    total_collected: Object.values(sourceCounts).reduce((sum, count) => sum + count, 0),
     total_raw: all.length,
     duplicate_same_source: internalDuplicates,
     duplicate_cross_source: duplicateGroups.length,
     invalid_after_merge: invalidJobs.length,
+    category_corrections_from_title: correctedCategoryCount,
     total_public: publicJobs.length,
     missing_files: missingFiles,
     duplicate_groups: duplicateGroups,
@@ -503,7 +546,11 @@ async function main() {
   console.log("\n====================================");
   console.log("RESUMO FINAL");
   console.log("====================================");
-  console.log(`Total bruto:                  ${all.length}`);
+  console.log(`Total coletado (bruto):       ${report.total_collected}`);
+  console.log(`Vagas elegíveis (7 dias):    ${all.length}`);
+  console.log(`Descartadas pela política:   ${report.total_collected - all.length}`);
+  console.log(`InfoJobs empresa confidencial: ${confidentialInfoJobs}`);
+  console.log(`Categorias corrigidas pelo cargo: ${correctedCategoryCount}`);
   console.log(`Duplicadas na mesma fonte:    ${internalDuplicates}`);
   console.log(`Duplicadas entre plataformas: ${duplicateGroups.length}`);
   console.log(`Inválidas após merge:         ${invalidJobs.length}`);

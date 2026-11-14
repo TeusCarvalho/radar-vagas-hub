@@ -3,6 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { CATALOG_WINDOW_DAYS, publicationExclusionReason } from "./catalog-policy.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,9 +11,9 @@ const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 const INPUT_FILE = path.join(__dirname, "radar-jobs.json");
 const BATCH_SIZE = 400;
-const WINDOW_DAYS = 15;
+const RETENTION_DAYS = 15;
 
-const EXPECTED_SOURCES = ["gupy", "inhire", "greenhouse", "lever", "ashby"];
+const EXPECTED_SOURCES = ["gupy", "inhire", "greenhouse", "lever", "ashby", "infojobs"];
 
 const STATUS_TABLE = "radar_status";
 const STATUS_ROW_ID = "main";
@@ -144,19 +145,23 @@ function validateCatalog(jobs) {
     );
   }
 
-  const invalid = jobs.filter(
-    (job) =>
-      !job?.source ||
-      !job?.external_id ||
-      !job?.title ||
-      !job?.company ||
-      !job?.application_url ||
-      !job?.published_at,
-  );
+  const nowMs = Date.now();
+  const invalid = jobs
+    .map((job) => ({
+      job,
+      reason:
+        publicationExclusionReason(job, nowMs) ??
+        (!job?.external_id || !job?.title || !job?.company || !job?.application_url
+          ? "missing_required_field"
+          : null),
+    }))
+    .filter(({ reason }) => reason !== null);
 
   if (invalid.length > 0) {
+    const sample = invalid.slice(0, 5)
+      .map(({ job, reason }) => `${job?.source ?? "?"}:${job?.external_id ?? "?"} (${reason})`);
     throw new Error(
-      `${invalid.length} vagas inválidas encontradas. Rode merge-jobs.mjs novamente.`,
+      `${invalid.length} vagas não cumprem a política de ${CATALOG_WINDOW_DAYS} dias: ${sample.join(", ")}. Sincronização cancelada.`,
     );
   }
 
@@ -263,14 +268,32 @@ async function main() {
 
   if (!apply) {
     console.log("");
-    console.log("DRY RUN.");
+    console.log("DRY RUN LOCAL: catálogo válido, mas o esquema e a conexão do banco NÃO foram verificados.");
     console.log("Nenhuma alteração foi feita no Supabase.");
-    console.log("");
-    console.log("Para gravar:");
-    console.log("node .\\scripts\\sync-supabase.mjs --apply");
+    console.log("Antes de gravar: fazer backup verificável e habilitar a constraint InfoJobs no banco.");
+    console.log("A execução --apply exige avaliação separada dos riscos de upsert.");
     return;
   }
 
+  const destructiveRequested =
+    process.argv.includes("--deactivate-absent") || process.argv.includes("--purge-expired");
+
+  // Segunda barreira: opções que desativam/excluem registros em massa
+  // não podem ser ativadas apenas pelo argumento de linha de comando.
+  // A rotina agendada usa somente --apply e não precisa desta variável.
+  if (
+    destructiveRequested &&
+    process.env.RADAR_ALLOW_DESTRUCTIVE_SYNC !== "YES_I_HAVE_A_VERIFIED_BACKUP"
+  ) {
+    throw new Error(
+      "Alterações em massa bloqueadas. Exigem autorização operacional, backup recente " +
+      "e RADAR_ALLOW_DESTRUCTIVE_SYNC=YES_I_HAVE_A_VERIFIED_BACKUP.",
+    );
+  }
+
+  if (process.argv.includes("--purge-expired") && !process.argv.includes("--deactivate-absent")) {
+    throw new Error("--purge-expired exige --deactivate-absent. Abortando antes de conectar.");
+  }
   const { url, secret } = requiredConfig();
 
   const supabase = createClient(url, secret, {
@@ -284,7 +307,11 @@ async function main() {
   const syncStartedAt = new Date().toISOString();
   const syncStartedMs = Date.now();
 
-  const payload = jobs.map((job) => dbPayload(job, syncStartedAt));
+  // Valida primeiro uma fonte que ainda exige uma constraint de banco.
+  // Se InfoJobs não estiver autorizado, o PRIMEIRO lote falha antes de
+  // modificar qualquer registro das demais fontes. Não substitui preflight.
+  const payload = jobs.map((job) => dbPayload(job, syncStartedAt))
+    .sort((a, b) => Number(b.source === "infojobs") - Number(a.source === "infojobs"));
   const batches = chunks(payload, BATCH_SIZE);
 
   console.log("");
@@ -310,27 +337,45 @@ async function main() {
     console.log(`Lote ${index + 1}/${batches.length} OK | ${processed}/${payload.length}`);
   }
 
-  // Após TODOS os upserts concluírem, vagas que já estavam no banco
-  // mas não apareceram nesta execução deixam de ser públicas.
-  const { error: inactiveError } = await supabase
-    .from("jobs")
-    .update({ active: false })
-    .eq("active", true)
-    .lt("last_seen_at", syncStartedAt);
+  // PRIMEIRA PUBLICAÇÃO: não desativa registros antigos automaticamente.
+  // O frontend já mostra somente published_at dos últimos 7 dias.
+  // Depois da confirmação de backup e observabilidade, pode-se habilitar
+  // --deactivate-absent em um rollout separado.
+  const deactivateAbsent = process.argv.includes("--deactivate-absent");
 
-  if (inactiveError) {
-    throw new Error(
-      `Upsert concluído, mas falhou ao marcar vagas ausentes: ${inactiveError.message}`,
-    );
+  if (deactivateAbsent) {
+    const { error: inactiveError } = await supabase
+      .from("jobs")
+      .update({ active: false })
+      .eq("active", true)
+      .lt("last_seen_at", syncStartedAt);
+
+    if (inactiveError) {
+      throw new Error(
+        `Upsert concluído, mas falhou ao marcar vagas ausentes: ${inactiveError.message}`,
+      );
+    }
+  } else {
+    console.log("Desativação de vagas ausentes: desligada (rollout sem alteração em massa).");
   }
 
-  // Retenção física: remove registros publicados antes da janela.
-  const cutoff = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  // Exclusão física permanece DESLIGADA por padrão.
+  // --purge-expired exige liberação separada, com backup verificado.
+  const purgeExpired = process.argv.includes("--purge-expired");
 
-  const { error: retentionError } = await supabase.from("jobs").delete().lt("published_at", cutoff);
+  if (purgeExpired && !deactivateAbsent) {
+    throw new Error("--purge-expired exige --deactivate-absent em execução separada, após backup.");
+  }
 
-  if (retentionError) {
-    throw new Error(`Falha na retenção de ${WINDOW_DAYS} dias: ${retentionError.message}`);
+  if (purgeExpired) {
+    const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const { error: retentionError } = await supabase.from("jobs").delete().lt("published_at", cutoff);
+
+    if (retentionError) {
+      throw new Error(`Falha na retenção de ${RETENTION_DAYS} dias: ${retentionError.message}`);
+    }
+  } else {
+    console.log("Retenção física desativada: nenhum registro antigo foi excluído.");
   }
 
   const { count: activeCount, error: countError } = await supabase
@@ -364,7 +409,11 @@ async function main() {
   console.log("====================================");
   console.log(`Upserts processados: ${processed}`);
   console.log(`Vagas ativas no Supabase: ${activeCount ?? "não informado"}`);
-  console.log(`Retenção: ${WINDOW_DAYS} dias`);
+  console.log(`Desativação de ausentes: ${deactivateAbsent ? "ativada" : "desativada"}`);
+  console.log(`Janela de publicação: ${CATALOG_WINDOW_DAYS} dias`);
+  console.log(
+    `Retenção física: ${purgeExpired ? `exclusão dos registros com mais de ${RETENTION_DAYS} dias` : "desativada (sem exclusão)"}`,
+  );
   console.log(`Última atualização registrada: ${syncFinishedAt}`);
   console.log(`Duração do sync: ${(durationMs / 1000).toFixed(1)}s`);
   console.log("====================================");

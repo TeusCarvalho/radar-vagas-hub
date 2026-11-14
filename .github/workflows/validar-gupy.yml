@@ -1,0 +1,107 @@
+name: Validar recuperação Gupy
+
+on:
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "src/**"
+      - "wrangler.jsonc"
+      - ".github/workflows/**"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar-gupy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Verificar sintaxe
+        run: |
+          node --check scripts/sync-supabase.mjs
+          node --check scripts/merge-jobs.mjs
+          node --check scripts/catalog-policy.mjs
+          node --check scripts/collect-gupy.mjs
+          node --check scripts/gupy-api.mjs
+          node --check scripts/sync-supabase.mjs
+          node --check scripts/merge-jobs.mjs
+      - name: Instalar dependências pelo lockfile
+        run: npm ci --no-audit --no-fund
+
+      - name: Testes unitários do contrato
+        run: node --test scripts/tests/*.test.mjs
+      - name: Smoke test HTTP do portal Gupy
+        run: node scripts/smoke-gupy.mjs
+      - name: Auditar dependências npm (diagnóstico)
+        shell: bash
+        run: |
+          # npm audit retorna código !=0 quando detecta vulnerabilidades.
+          # Primeiro coletamos evidências por escopo; a remediação é uma etapa
+          # separada e revisada, sem atualizações automáticas de pacotes.
+          npm audit --json > /tmp/radar-audit-all.json || true
+          npm audit --omit=dev --json > /tmp/radar-audit-runtime.json || true
+
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+
+          const scopes = [
+            ["Todas as dependências", "/tmp/radar-audit-all.json"],
+            ["Somente runtime (omit=dev)", "/tmp/radar-audit-runtime.json"],
+          ];
+
+          for (const [scope, file] of scopes) {
+            let report;
+            try {
+              report = JSON.parse(fs.readFileSync(file, "utf8"));
+            } catch (error) {
+              throw new Error("npm audit sem JSON válido em " + scope + ": " + error.message);
+            }
+
+            if (report.error) throw new Error("npm audit falhou em " + scope + ": " + JSON.stringify(report.error));
+
+            const severities = report.metadata?.vulnerabilities ?? {};
+            const vulnerabilities = Object.entries(report.vulnerabilities ?? {});
+
+            console.log("=== npm audit: " + scope + " ===");
+            console.log("Resumo por gravidade:", JSON.stringify(severities));
+            console.log("Pacotes afetados:");
+            for (const [name, data] of vulnerabilities) {
+              const via = (data.via ?? []).map((v) =>
+                typeof v === "string" ? v : (v.name + " / " + v.title)
+              ).join(" | ");
+              const fix = data.fixAvailable === false
+                ? "sem correção sugerida"
+                : data.fixAvailable === true
+                  ? "fix disponível"
+                  : JSON.stringify(data.fixAvailable);
+              console.log(" - " + name + " | " + data.severity +
+                " | direto=" + Boolean(data.isDirect) +
+                " | via=" + via + " | " + fix);
+            }
+
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+              "### " + scope + "\n" +
+              "Vulnerabilidades: " + JSON.stringify(severities) +
+              "\nPacotes afetados: " + vulnerabilities.map(([name]) => "\x60" + name + "\x60").join(", ") +
+              "\n\n"
+            );
+          }
+          NODE
+
+      - name: Bloquear vulnerabilidades altas ou criticas em runtime
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Verificar tipos TypeScript
+        run: npx tsc --noEmit
+      - name: Compilar frontend
+        run: npm run build
+
+      - name: Verificar empacotamento Cloudflare sem publicar
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/radar-cloudflare-dry-run

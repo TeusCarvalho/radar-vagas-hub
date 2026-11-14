@@ -12,7 +12,7 @@ const SITES_FILE = path.join(__dirname, "lever-sites.txt");
 const FIRST_SEEN_FILE = path.join(__dirname, "lever-first-seen.json");
 const OUTPUT_FILE = path.join(__dirname, "lever-results.json");
 
-const WINDOW_DAYS = 15;
+const WINDOW_DAYS = 7;
 const PAGE_SIZE = 100;
 const SITE_CONCURRENCY = 5;
 const REQUEST_TIMEOUT_MS = 15_000;

@@ -10,7 +10,7 @@ const API_BASE = "https://api.ashbyhq.com/posting-api/job-board";
 const BOARDS_FILE = path.join(__dirname, "ashby-boards.txt");
 const OUTPUT_FILE = path.join(__dirname, "ashby-results.json");
 
-const WINDOW_DAYS = 15;
+const WINDOW_DAYS = 7;
 const BOARD_CONCURRENCY = 6;
 const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_RETRIES = 2;

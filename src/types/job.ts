@@ -1,4 +1,4 @@
-export type JobSource = "gupy" | "inhire" | "greenhouse" | "lever" | "ashby";
+export type JobSource = "gupy" | "inhire" | "greenhouse" | "lever" | "ashby" | "infojobs" | "unknown";
 
 export type WorkplaceType = "remote" | "hybrid" | "onsite" | "unknown";
 
@@ -68,6 +68,11 @@ export interface JobQuery {
   source?: JobSource | "todos";
 
   sort?: SortOption;
+
+  /** Página 1-based para consulta no servidor. */
+  page?: number;
+  /** Quantidade máxima por página, limitada a 20. */
+  pageSize?: number;
 }
 
 export interface JobQueryResult {
@@ -105,4 +110,6 @@ export const SOURCE_LABELS: Record<JobSource, string> = {
   greenhouse: "Greenhouse",
   lever: "Lever",
   ashby: "Ashby",
+  infojobs: "InfoJobs",
+  unknown: "Fonte não identificada",
 };

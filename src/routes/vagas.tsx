@@ -19,15 +19,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
 import { jobsRepository } from "@/services/jobsRepository";
+import { JOBS_PER_PAGE } from "@/services/jobs-query";
+import { searchLocalPreviewJobs } from "@/services/devLocalCatalog";
 
 import type {
   ContractType,
@@ -37,8 +31,6 @@ import type {
   SortOption,
   WorkplaceType,
 } from "@/types/job";
-
-const JOBS_PER_PAGE = 20;
 
 interface VagasSearch {
   q: string;
@@ -50,6 +42,7 @@ interface VagasSearch {
   origem: string;
   ordem: string;
   pagina: number;
+  previa: string;
 }
 
 type VagasSearchInput = Partial<VagasSearch>;
@@ -76,8 +69,11 @@ export const Route = createFileRoute("/vagas")({
     area: str(search.area, "todos"),
     contrato: str(search.contrato, "todos"),
     origem: str(search.origem, "todos"),
-    ordem: str(search.ordem, "recentes"),
+    // Ordenação por relevância requer índice/ranqueamento no banco.
+    // Até lá, não anunciamos um critério que a consulta não executa.
+    ordem: "recentes",
     pagina: positiveInt(search.pagina, 1),
+    previa: search.previa === "local" ? "local" : "",
   }),
 
   head: () => ({
@@ -133,11 +129,26 @@ function VagasPage() {
     source: search.origem as JobSource | "todos",
 
     sort: search.ordem as SortOption,
+    page: search.pagina,
+    pageSize: JOBS_PER_PAGE,
   };
 
-  const { data, isPending, isError, refetch } = useQuery({
-    queryKey: ["jobs", search],
-    queryFn: () => jobsRepository.search(query),
+  // Sem configuração pública do Supabase, o ambiente DEV abre o catálogo
+  // local automaticamente. A versão de produção nunca utiliza essa prévia.
+  const hasSupabaseConfig = Boolean(
+    import.meta.env.VITE_SUPABASE_URL?.trim() &&
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim(),
+  );
+  const isAutomaticLocalPreview = import.meta.env.DEV && !hasSupabaseConfig;
+  const isLocalPreview =
+    import.meta.env.DEV && (isAutomaticLocalPreview || search.previa === "local");
+
+  const { data, isPending, isError, error, refetch } = useQuery({
+    queryKey: ["jobs", isLocalPreview ? "preview-local" : "supabase", query],
+    queryFn: () =>
+      isLocalPreview ? searchLocalPreviewJobs(query) : jobsRepository.search(query),
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: facets } = useQuery({
@@ -166,28 +177,35 @@ function VagasPage() {
     source: "origem",
   };
 
-  const hasActiveFilters =
-    Object.values(filters).some((value) => value !== "todos") || search.q.length > 0;
+  const appliedFilterCount = Object.values(filters).filter((value) => value !== "todos").length;
+  const hasActiveFilters = appliedFilterCount > 0 || search.q.length > 0;
+  const hasDetailedFilters = [
+    search.nivel, search.estado, search.area, search.contrato, search.origem,
+  ].some((value) => value !== "todos");
+  const [showFilters, setShowFilters] = useState(hasDetailedFilters);
 
-  /*
-   * Paginação
-   */
-  const allJobs = data?.jobs ?? [];
-  const totalJobs = data?.total ?? allJobs.length;
+  useEffect(() => {
+    if (hasDetailedFilters) setShowFilters(true);
+  }, [hasDetailedFilters]);
 
+  // Cada consulta já retorna somente a página solicitada pelo servidor.
+  const paginatedJobs = data?.jobs ?? [];
+  const totalJobs = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalJobs / JOBS_PER_PAGE));
-
   const currentPage = Math.min(Math.max(search.pagina, 1), totalPages);
+  const firstVisible = totalJobs === 0 ? 0 : (currentPage - 1) * JOBS_PER_PAGE + 1;
+  const lastVisible = Math.min(currentPage * JOBS_PER_PAGE, totalJobs);
 
-  const startIndex = (currentPage - 1) * JOBS_PER_PAGE;
-
-  const endIndex = startIndex + JOBS_PER_PAGE;
-
-  const paginatedJobs = allJobs.slice(startIndex, endIndex);
-
-  const firstVisible = totalJobs === 0 ? 0 : startIndex + 1;
-
-  const lastVisible = Math.min(endIndex, totalJobs);
+  // URLs antigas com ?pagina=9999 não devem apresentar uma página vazia.
+  useEffect(() => {
+    if (!isPending && !isError && data && search.pagina > totalPages) {
+      navigate({
+        to: ".",
+        replace: true,
+        search: (prev) => ({ ...prev, pagina: 1 }),
+      });
+    }
+  }, [data, isPending, isError, search.pagina, totalPages, navigate]);
 
   const updateFilter = (key: keyof FilterState, value: string) => {
     navigate({
@@ -204,6 +222,7 @@ function VagasPage() {
   };
 
   const clearAll = () => {
+    setTerm("");
     navigate({
       to: ".",
 
@@ -217,6 +236,7 @@ function VagasPage() {
         origem: "todos",
         ordem: "recentes",
         pagina: 1,
+        previa: search.previa,
       },
     });
   };
@@ -250,9 +270,10 @@ function VagasPage() {
     });
 
     if (typeof window !== "undefined") {
-      window.scrollTo({
-        top: 0,
+      // Na paginação, manter o foco nos resultados em vez de voltar ao topo.
+      document.getElementById("resultados-vagas")?.scrollIntoView({
         behavior: "smooth",
+        block: "start",
       });
     }
   };
@@ -261,112 +282,175 @@ function VagasPage() {
     <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
-          Vagas abertas
-        </h1>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+        <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-brand">
+            Radar de oportunidades · últimos 7 dias
+          </p>
+          <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
+            Encontre sua próxima vaga
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Pesquise por cargo ou empresa e encontre oportunidades recentes em seis plataformas.
+          </p>
 
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pesquise por cargo, palavra-chave ou empresa e refine com os filtros.
-        </p>
-
-        <form
-          onSubmit={submitSearch}
-          className="mt-6 flex flex-col gap-3 sm:flex-row"
-          role="search"
-        >
-          <div className="relative flex-1">
-            <Label htmlFor="busca-vagas" className="sr-only">
-              Buscar vagas
-            </Label>
-
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-
-            <Input
-              id="busca-vagas"
-              value={term}
-              onChange={(event) => setTerm(event.target.value)}
-              placeholder="Cargo, palavra-chave ou empresa"
-              className="h-12 bg-surface pl-9 text-base"
-            />
-          </div>
-
-          <Button type="submit" size="lg" className="h-12">
-            Buscar vagas
-          </Button>
-        </form>
-
-        <div className="mt-8 grid gap-6 lg:grid-cols-[280px_1fr]">
-          <div className="lg:sticky lg:top-24 lg:self-start">
-            <JobFilters
-              value={filters}
-              states={states}
-              categories={categories}
-              hasActiveFilters={hasActiveFilters}
-              onChange={updateFilter}
-              onClear={clearAll}
-            />
-          </div>
-
-          <div>
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-card">
-              <div>
-                <p className="text-sm font-semibold text-foreground" aria-live="polite">
-                  {isPending
-                    ? "Carregando vagas…"
-                    : `${totalJobs} ${totalJobs === 1 ? "vaga encontrada" : "vagas encontradas"}`}
-                </p>
-
-                {!isPending && !isError && totalJobs > 0 && (
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Mostrando {firstVisible}–{lastVisible} de {totalJobs}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="size-4 text-muted-foreground" aria-hidden="true" />
-
-                <Label htmlFor="ordenacao" className="sr-only">
-                  Ordenar por
-                </Label>
-
-                <Select
-                  value={search.ordem}
-                  onValueChange={(value) =>
-                    navigate({
-                      to: ".",
-
-                      search: (prev) => ({
-                        ...prev,
-                        ordem: value,
-
-                        // Mudou ordenação -> página 1
-                        pagina: 1,
-                      }),
-                    })
-                  }
-                >
-                  <SelectTrigger id="ordenacao" className="h-9 w-[180px] bg-surface">
-                    <SelectValue />
-                  </SelectTrigger>
-
-                  <SelectContent>
-                    <SelectItem value="recentes">Mais recentes</SelectItem>
-
-                    <SelectItem value="relevancia">Relevância</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <form onSubmit={submitSearch} className="mt-4 flex flex-col gap-2 sm:flex-row" role="search">
+            <div className="relative min-w-0 flex-1">
+              <Label htmlFor="busca-vagas" className="sr-only">
+                Cargo, empresa ou palavra-chave
+              </Label>
+              <Search
+                className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <Input
+                id="busca-vagas"
+                value={term}
+                onChange={(event) => setTerm(event.target.value)}
+                maxLength={120}
+                placeholder="Ex.: Analista de Dados, Python ou empresa"
+                className="h-12 bg-background pl-10 text-base"
+              />
             </div>
+            <Button type="submit" size="lg" className="h-12 px-7">
+              <Search className="size-4" aria-hidden="true" />
+              Buscar vagas
+            </Button>
+          </form>
+
+          <div
+            className="mt-3 flex flex-wrap items-center gap-2"
+            role="group"
+            aria-label="Filtrar rapidamente pela modalidade"
+          >
+            <span className="mr-1 text-xs font-semibold text-muted-foreground">
+              Modalidade
+            </span>
+            {([
+              ["todos", "Todas"],
+              ["remote", "Remotas"],
+              ["hybrid", "Híbridas"],
+              ["onsite", "Presenciais"],
+            ] as const).map(([value, label]) => (
+              <Button
+                key={value}
+                type="button"
+                size="sm"
+                variant={filters.workplaceType === value ? "default" : "outline"}
+                aria-pressed={filters.workplaceType === value}
+                onClick={() => updateFilter("workplaceType", value)}
+                className="h-9 rounded-full px-3 text-xs"
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        </section>
+
+        {import.meta.env.DEV && (
+          <div
+            className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2"
+            role="status"
+          >
+            <p className="text-xs text-muted-foreground">
+              {isAutomaticLocalPreview
+                ? "Prévia local automática · dados do JSON, sem gravação no banco."
+                : isLocalPreview
+                  ? "Prévia local ativa · nenhuma vaga foi enviada ao Supabase."
+                  : "Conectado ao Supabase · consulta de vagas ativa."}
+            </p>
+            {isAutomaticLocalPreview ? (
+              <span className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">
+                Somente desenvolvimento
+              </span>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  navigate({
+                    to: ".",
+                    search: (prev) => ({
+                      ...prev,
+                      previa: isLocalPreview ? "" : "local",
+                      pagina: 1,
+                    }),
+                  })
+                }
+              >
+                {isLocalPreview ? "Voltar ao Supabase" : "Prévia local"}
+              </Button>
+            )}
+          </div>
+        )}
+
+        <section id="resultados-vagas" className="mt-5 scroll-mt-24" aria-label="Resultados de vagas">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+            <div>
+              <h2 className="text-base font-bold text-foreground" aria-live="polite">
+                {isPending
+                  ? "Buscando oportunidades…"
+                  : isError
+                    ? "Não foi possível carregar as vagas"
+                    : `${totalJobs.toLocaleString("pt-BR")} ${totalJobs === 1 ? "vaga encontrada" : "vagas encontradas"}`}
+              </h2>
+              {!isPending && !isError && totalJobs > 0 && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Mostrando {firstVisible.toLocaleString("pt-BR")}–{lastVisible.toLocaleString("pt-BR")} ·
+                  Ordenadas por publicação mais recente
+                </p>
+              )}
+              {search.q && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Busca: <span className="font-medium text-foreground">“{search.q}”</span>
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {hasActiveFilters && (
+                <Button type="button" variant="ghost" size="sm" onClick={clearAll}>
+                  Limpar filtros
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant={showFilters ? "secondary" : "outline"}
+                size="sm"
+                aria-expanded={showFilters}
+                aria-controls="painel-filtros"
+                onClick={() => setShowFilters((current) => !current)}
+                className="h-9"
+              >
+                <SlidersHorizontal className="size-4" aria-hidden="true" />
+                {showFilters ? "Ocultar filtros" : "Filtros"}
+                {appliedFilterCount > 0 && (
+                  <span className="rounded-full bg-brand-soft px-1.5 text-xs font-bold text-brand">
+                    {appliedFilterCount}
+                  </span>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {showFilters && (
+            <div id="painel-filtros" className="mt-4">
+              <JobFilters
+                value={filters}
+                states={states}
+                categories={categories}
+                hasActiveFilters={hasActiveFilters}
+                onChange={updateFilter}
+                onClear={clearAll}
+              />
+            </div>
+          )}
 
             {isPending && (
               <div className="mt-4 space-y-4">
                 {[0, 1, 2, 3].map((index) => (
-                  <Skeleton key={index} className="h-48 w-full rounded-2xl" />
+                  <Skeleton key={index} className="h-36 w-full rounded-xl" />
                 ))}
               </div>
             )}
@@ -383,8 +467,15 @@ function VagasPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Ocorreu um erro na busca. Tente novamente em instantes.
+                  Não foi possível consultar as vagas. Verifique sua conexão e as configurações do Supabase.
+                  Se o problema continuar, consulte o console do navegador (F12) para identificar a causa.
                 </p>
+
+                {import.meta.env.DEV && error && (
+                  <p className="mt-3 break-words rounded-md border border-border p-3 text-left text-xs text-muted-foreground">
+                    Diagnóstico local: {error instanceof Error ? error.message : String(error)}
+                  </p>
+                )}
 
                 <Button className="mt-4" onClick={() => refetch()}>
                   Tentar novamente
@@ -401,20 +492,24 @@ function VagasPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Tente outras palavras-chave ou remova alguns filtros.
+                  {hasActiveFilters
+                    ? "Tente outras palavras-chave ou remova alguns filtros."
+                    : "Não há vagas cadastradas nos últimos 7 dias. O catálogo pode estar aguardando atualização."}
                 </p>
 
-                <Button variant="outline" className="mt-4" onClick={clearAll}>
-                  Limpar filtros
-                </Button>
+                {hasActiveFilters && (
+                  <Button variant="outline" className="mt-4" onClick={clearAll}>
+                    Limpar filtros
+                  </Button>
+                )}
               </div>
             )}
 
             {!isPending && !isError && data && totalJobs > 0 && (
               <>
-                <div className="mt-4 space-y-4">
+                <div className="mt-4 space-y-3">
                   {paginatedJobs.map((job) => (
-                    <JobCard key={job.id} job={job} />
+                    <JobCard key={job.id} job={job} isLocalPreview={isLocalPreview} />
                   ))}
                 </div>
 
@@ -456,10 +551,9 @@ function VagasPage() {
                 )}
               </>
             )}
-          </div>
-        </div>
+        </section>
 
-        <p className="mt-10 text-center text-sm text-muted-foreground">
+        <p className="mt-8 text-center text-sm text-muted-foreground">
           Não achou o que procurava?{" "}
           <Link to="/" className="font-semibold text-brand hover:underline">
             Voltar para a página inicial
