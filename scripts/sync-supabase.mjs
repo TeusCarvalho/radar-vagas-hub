@@ -329,13 +329,19 @@ async function main() {
     );
   }
 
-  // Retenção física: remove registros publicados antes da janela.
-  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  // Exclusão física permanece DESLIGADA por padrão.
+  // --purge-expired exige liberação separada, com backup verificado.
+  const purgeExpired = process.argv.includes("--purge-expired");
 
-  const { error: retentionError } = await supabase.from("jobs").delete().lt("published_at", cutoff);
+  if (purgeExpired) {
+    const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const { error: retentionError } = await supabase.from("jobs").delete().lt("published_at", cutoff);
 
-  if (retentionError) {
-    throw new Error(`Falha na retenção de ${RETENTION_DAYS} dias: ${retentionError.message}`);
+    if (retentionError) {
+      throw new Error(`Falha na retenção de ${RETENTION_DAYS} dias: ${retentionError.message}`);
+    }
+  } else {
+    console.log("Retenção física desativada: nenhum registro antigo foi excluído.");
   }
 
   const { count: activeCount, error: countError } = await supabase
@@ -370,7 +376,9 @@ async function main() {
   console.log(`Upserts processados: ${processed}`);
   console.log(`Vagas ativas no Supabase: ${activeCount ?? "não informado"}`);
   console.log(`Janela de publicação: ${CATALOG_WINDOW_DAYS} dias`);
-  console.log(`Retenção física: ${RETENTION_DAYS} dias`);
+  console.log(
+    `Retenção física: ${purgeExpired ? `exclusão dos registros com mais de ${RETENTION_DAYS} dias` : "desativada (sem exclusão)"}`,
+  );
   console.log(`Última atualização registrada: ${syncFinishedAt}`);
   console.log(`Duração do sync: ${(durationMs / 1000).toFixed(1)}s`);
   console.log("====================================");
