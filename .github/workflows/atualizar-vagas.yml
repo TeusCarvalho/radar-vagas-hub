@@ -4,17 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       sync_production:
-        description: "Atualizar o Supabase (upsert; sem excluir vagas; InfoJobs pode ser omitido se bloqueado)"
+        description: "Sincronizar produção (PADRÃO: marcado). Desmarque apenas para teste sem gravação."
         type: boolean
         required: false
-        default: false
+        default: true
 
   schedule:
-    # Brasília (UTC-3).
-    # Evita o minuto 00, quando o GitHub pode atrasar ou descartar agendamentos.
-    # 08:07 BRT = 11:07 UTC; 18:07 BRT = 21:07 UTC.
-    # Uma alteração do cron também reativa agendamentos suspensos por inatividade.
-    - cron: "7 11,21 * * *"
+    # Brasília (UTC-3); horários não coincidem com o minuto 00.
+    # Entradas separadas facilitam auditar os dois disparos e renovam o cron.
+    - cron: "7 11 * * *"  # 08h07 Brasília
+    - cron: "7 21 * * *"  # 18h07 Brasília
 
 permissions:
   contents: read
@@ -27,7 +26,7 @@ jobs:
   atualizar-vagas:
     name: Coletar, normalizar e sincronizar
     # Agendamento sincroniza cinco fontes obrigatórias; InfoJobs só se completo.
-    # Execução manual testa sem escrever, salvo quando a caixa de autorização for marcada.
+    # Execuções manuais sincronizam por padrão; desmarcar sync_production faz diagnóstico sem gravação.
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
@@ -247,7 +246,7 @@ jobs:
           NODE
 
       # Backup, constraint InfoJobs e sincronização inicial foram validados em 14/11/2026.
-      # Cron: duas atualizações por dia; execução manual exige opt-in para gravar.
+      # Cron: duas atualizações por dia; execução manual grava por padrão (dry-run opcional).
       # A carga faz somente upsert: não desativa nem exclui vagas existentes.
       # Secrets ficam EXCLUSIVAMENTE nos steps de validação e sync.
       # Não expor credenciais de produção a npm ci, caches ou coletores externos.
@@ -272,6 +271,7 @@ jobs:
           fi
 
       - name: Sincronizar Supabase (somente upsert)
+        id: supabase_sync
         if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.sync_production == true) }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -296,6 +296,7 @@ jobs:
           echo "- Tipo de execução: ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Escrita autorizada: ${{ github.event_name == 'schedule' || inputs.sync_production == true }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Política: somente upsert (sem desativação/exclusão)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Etapa de gravação: ${{ steps.supabase_sync.outcome }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Coleta InfoJobs: ${{ steps.infojobs.outcome }}" >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ steps.infojobs.outcome }}" != "success" ]; then
             echo "- ATENÇÃO: InfoJobs falhou; dados existentes preservados. Outras fontes podem ter sido atualizadas." >> "$GITHUB_STEP_SUMMARY"
