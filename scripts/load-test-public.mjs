@@ -38,15 +38,17 @@ async function probe(index) {
   try {
     const response = await fetch(url, {
       method: "GET",
-      headers: { Accept: "text/html", "User-Agent": "RadarVagas-AuthorizedLoadTest/1.0" },
-      redirect: "error",
+      headers: { Accept: "text/html" },
+      redirect: "follow",
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       cache: "no-store",
     });
     const html = await response.text();
+    const finalUrl = new URL(response.url);
     const latencyMs = Math.round(performance.now() - start);
     const contentType = response.headers.get("content-type") ?? "";
     const ok = response.status === 200 &&
+      finalUrl.origin === BASE &&
       contentType.includes("text/html") &&
       /radar\s+vagas/i.test(html) &&
       !/Just a moment\.\.\.|Error 1020/i.test(html);
@@ -56,7 +58,9 @@ async function probe(index) {
       ok: false,
       status: "network-error",
       latencyMs: Math.round(performance.now() - start),
-      detail: error instanceof Error ? error.message : String(error),
+      detail: error instanceof Error
+        ? `${error.message}; cause=${error.cause instanceof Error ? error.cause.message : String(error.cause ?? "none")}; code=${error.cause?.code ?? "none"}`
+        : String(error),
     };
   } finally {
     inFlight--;
