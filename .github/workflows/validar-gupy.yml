@@ -107,3 +107,5 @@ jobs:
 
       - name: Verificar empacotamento Cloudflare sem publicar
         run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/radar-cloudflare-dry-run
+      - name: Teste HTTP leve do portal em produção
+        run: node scripts/smoke-production.mjs
