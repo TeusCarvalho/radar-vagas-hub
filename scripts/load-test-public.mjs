@@ -48,8 +48,8 @@ async function probe(index) {
     const contentType = response.headers.get("content-type") ?? "";
     const ok = response.status === 200 &&
       contentType.includes("text/html") &&
-      /radar\\s+vagas/i.test(html) &&
-      !/Just a moment\\.\\.\\.|Error 1020/i.test(html);
+      /radar\s+vagas/i.test(html) &&
+      !/Just a moment\.\.\.|Error 1020/i.test(html);
     return { ok, status: response.status, latencyMs };
   } catch (error) {
     return {
@@ -99,14 +99,14 @@ for (const concurrency of CONCURRENCY_STAGES) {
 
 console.log("FINAL", JSON.stringify({ total, errors, peakInFlight, stages: table }));
 if (process.env.GITHUB_STEP_SUMMARY) {
-  let md = "## Radar Vagas — teste de carga limitado\\n\\n";
-  md += "Somente GET no Worker; limite de 65 solicitações e 30 concorrentes.\\n\\n";
-  md += "| Concorrência | Requisições | Falhas | p50 | p95 | req/s |\\n";
-  md += "|---:|---:|---:|---:|---:|---:|\\n";
+  let md = "## Radar Vagas — teste de carga limitado\n\n";
+  md += "Somente GET no Worker; limite de 65 solicitações e 30 concorrentes.\n\n";
+  md += "| Concorrência | Requisições | Falhas | p50 | p95 | req/s |\n";
+  md += "|---:|---:|---:|---:|---:|---:|\n";
   for (const v of table) {
-    md += `| ${v.concurrent} | ${v.requests} | ${v.errors} | ${v.p50} ms | ${v.p95} ms | ${v.throughput} |\\n`;
+    md += `| ${v.concurrent} | ${v.requests} | ${v.errors} | ${v.p50} ms | ${v.p95} ms | ${v.throughput} |\n`;
   }
-  md += "\\nEste teste não simula navegadores reais nem chamadas Supabase feitas pelo cliente.\\n";
+  md += "\nEste teste não simula navegadores reais nem chamadas Supabase feitas pelo cliente.\n";
   fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
 }
 
