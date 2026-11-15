@@ -27,6 +27,8 @@ jobs:
         run: |
           node --check scripts/sync-supabase.mjs
           node --check scripts/merge-jobs.mjs
+          node --check scripts/source-availability.mjs
+          node --check scripts/collect-infojobs.mjs
           node --check scripts/catalog-policy.mjs
           node --check scripts/collect-gupy.mjs
           node --check scripts/gupy-api.mjs
