@@ -1,0 +1,27 @@
+name: Monitorar Radar Vagas público
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 08:41 e 18:41 Brasília (UTC-3), após as coletas previstas.
+    - cron: "41 11,21 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: radar-vagas-monitor
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Verificar páginas públicas sem alterar dados
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Verificar homepage, catálogo, busca e cabeçalhos de segurança
+        run: node scripts/smoke-production.mjs
