@@ -1215,6 +1215,16 @@ async function main() {
   }
 
   console.log(`\nJSON: ${OUTPUT_FILE}`);
+
+  // Um shard com erro produz um catálogo parcial, mesmo que as demais UFs tenham
+  // retornado vagas. Sinalizar falha impede sincronização incompleta em produção.
+  // O JSON de diagnóstico permanece disponível no workspace desta execução.
+  if (stateErrors.length > 0) {
+    console.error(
+      `Coleta InfoJobs incompleta: ${stateErrors.length} UF(s) falharam. Não sincronizar esta carga.`,
+    );
+    process.exitCode = 1;
+  }
 }
 
 main().catch((error) => {
