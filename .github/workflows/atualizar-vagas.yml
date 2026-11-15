@@ -10,12 +10,11 @@ on:
         default: false
 
   schedule:
-    # Brasília (UTC-3)
-    # 08:00 BRT = 11:00 UTC
-    - cron: "0 11 * * *"
-
-    # 18:00 BRT = 21:00 UTC
-    - cron: "0 21 * * *"
+    # Brasília (UTC-3).
+    # Evita o minuto 00, quando o GitHub pode atrasar ou descartar agendamentos.
+    # 08:07 BRT = 11:07 UTC; 18:07 BRT = 21:07 UTC.
+    # Uma alteração do cron também reativa agendamentos suspensos por inatividade.
+    - cron: "7 11,21 * * *"
 
 permissions:
   contents: read
@@ -279,7 +278,7 @@ jobs:
           echo "## Radar Vagas — atualização" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Horário UTC: $(date -u '+%Y-%m-%d %H:%M:%S')" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Programação: 08h e 18h (horário de Brasília, UTC-3)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Programação: 08h07 e 18h07 (horário de Brasília, UTC-3)" >> "$GITHUB_STEP_SUMMARY"
           echo "- Tipo de execução: ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Escrita autorizada: ${{ github.event_name == 'schedule' || inputs.sync_production == true }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Política: somente upsert (sem desativação/exclusão)" >> "$GITHUB_STEP_SUMMARY"
