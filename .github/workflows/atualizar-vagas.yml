@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       sync_production:
-        description: "Sincronizar com o Supabase após validar as seis fontes (somente upsert)"
+        description: "Atualizar o Supabase (upsert; sem excluir vagas; InfoJobs pode ser omitido se bloqueado)"
         type: boolean
         required: false
         default: false
@@ -26,7 +26,7 @@ concurrency:
 jobs:
   atualizar-vagas:
     name: Coletar, normalizar e sincronizar
-    # Agendamento sincroniza depois de validar as seis fontes.
+    # Agendamento sincroniza cinco fontes obrigatórias; InfoJobs só se completo.
     # Execução manual testa sem escrever, salvo quando a caixa de autorização for marcada.
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -40,7 +40,8 @@ jobs:
       # InfoJobs
       INFOJOBS_DETAIL_CACHE_MAX_AGE_HOURS: "168"
       INFOJOBS_ENABLE_DETAIL_FALLBACK: "false"
-      INFOJOBS_STATE_CONCURRENCY: "2"
+      INFOJOBS_STATE_CONCURRENCY: "1"
+      INFOJOBS_REQUEST_DELAY_MS: "350"
 
     steps:
       - name: Checkout
@@ -122,15 +123,16 @@ jobs:
         run: node scripts/collect-infojobs.mjs
 
       - name: Salvar cache de detalhes do InfoJobs
-        if: always()
+        if: ${{ always() && hashFiles('.cache/infojobs-detail-cache.json') != '' }}
         uses: actions/cache/save@v4
         with:
           path: .cache/infojobs-detail-cache.json
           key: infojobs-detail-${{ runner.os }}-${{ github.run_id }}
 
-      # Executa todos os coletores para diagnosticar falhas individuais, mas
-      # nunca sincroniza um snapshot parcial que desativaria vagas de fontes ausentes.
-      - name: Validar sucesso de todas as fontes
+      # Uma falha InfoJobs não pode bloquear as outras cinco fontes.
+      # O merge descartará INTEGRALMENTE o arquivo InfoJobs se a coleta tiver falhado.
+      # A escrita é somente upsert: nenhuma ausência desativa vagas existentes.
+      - name: Validar sucesso das fontes obrigatórias
         env:
           GUPY_OUTCOME: ${{ steps.gupy.outcome }}
           INHIRE_OUTCOME: ${{ steps.inhire.outcome }}
@@ -150,6 +152,10 @@ jobs:
             const resultPath = `scripts/${source}-results.json`;
 
             if (outcome !== "success") {
+              if (source === "infojobs") {
+                console.warn("::warning::InfoJobs incompleto/bloqueado; será omitido da carga, sem excluir registros existentes.");
+                continue;
+              }
               errors.push(`${source}: coletor terminou com status ${outcome || "desconhecido"}`);
               continue;
             }
@@ -177,10 +183,14 @@ jobs:
           NODE
 
       - name: Merge e deduplicação
+        env:
+          RADAR_ALLOW_MISSING_INFOJOBS: ${{ steps.infojobs.outcome != 'success' && 'true' || 'false' }}
         run: node scripts/merge-jobs.mjs
 
       - name: Validar arquivo final
         shell: bash
+        env:
+          RADAR_ALLOW_MISSING_INFOJOBS: ${{ steps.infojobs.outcome != 'success' && 'true' || 'false' }}
         run: |
           test -f scripts/radar-jobs.json || {
             echo "::error::scripts/radar-jobs.json não foi gerado."
@@ -216,12 +226,15 @@ jobs:
             "infojobs",
           ];
 
-          for (const source of expected) {
-            if (!sources.has(source)) {
-              throw new Error(
-                `Fonte ausente no merge: ${source}. Sync cancelado por segurança.`,
-              );
-            }
+          const { validateSourceCoverage } = await import("./scripts/source-availability.mjs");
+          const counts = Object.fromEntries(expected.map((source) => [
+            source, jobs.filter((job) => job.source === source).length,
+          ]));
+          const coverage = validateSourceCoverage(counts, {
+            allowMissingInfojobs: process.env.RADAR_ALLOW_MISSING_INFOJOBS === "true",
+          });
+          if (coverage.partial) {
+            console.warn("::warning::Carga parcial: InfoJobs excluído; cinco fontes serão atualizadas.");
           }
 
           console.log(
@@ -263,6 +276,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          RADAR_ALLOW_MISSING_INFOJOBS: ${{ steps.infojobs.outcome != 'success' && 'true' || 'false' }}
         run: node scripts/sync-supabase.mjs --apply
 
       - name: Execução manual sem gravação no banco
@@ -282,6 +296,10 @@ jobs:
           echo "- Tipo de execução: ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Escrita autorizada: ${{ github.event_name == 'schedule' || inputs.sync_production == true }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Política: somente upsert (sem desativação/exclusão)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Coleta InfoJobs: ${{ steps.infojobs.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.infojobs.outcome }}" != "success" ]; then
+            echo "- ATENÇÃO: InfoJobs falhou; dados existentes preservados. Outras fontes podem ter sido atualizadas." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
           if [ -f scripts/radar-jobs.json ]; then
             TOTAL=$(node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('./scripts/radar-jobs.json','utf8')); console.log(j.length)")
@@ -290,7 +308,9 @@ jobs:
             echo "- Merge desta execução: não concluído" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-          if [ -f scripts/infojobs-results.json ]; then
+          if [ "${{ steps.infojobs.outcome }}" != "success" ]; then
+            echo "- InfoJobs: ERRO — arquivo parcial descartado da sincronização" >> "$GITHUB_STEP_SUMMARY"
+          elif [ -f scripts/infojobs-results.json ]; then
             INFOJOBS_TOTAL=$(node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('./scripts/infojobs-results.json','utf8')); console.log(j.length)")
             echo "- InfoJobs: $INFOJOBS_TOTAL vagas" >> "$GITHUB_STEP_SUMMARY"
           else
@@ -310,3 +330,10 @@ jobs:
           else
             echo "- Cache InfoJobs: não gerado" >> "$GITHUB_STEP_SUMMARY"
           fi
+      # Envia sinal claro ao GitHub (e às notificações por e-mail):
+      # houve atualização das cinco fontes, mas o InfoJobs permanece indisponível.
+      - name: Alertar coleta parcial após preservar as demais fontes
+        if: ${{ always() && steps.infojobs.outcome != 'success' }}
+        run: |
+          echo "::error::InfoJobs não concluiu a coleta. As outras fontes foram processadas quando válidas; veja o resumo e o banco."
+          exit 1
