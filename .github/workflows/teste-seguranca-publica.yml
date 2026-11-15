@@ -1,0 +1,35 @@
+name: Auditoria XSS e headers em producao
+
+on:
+  pull_request:
+    paths:
+      - "scripts/security-smoke-production.mjs"
+      - "scripts/security-browser-xss.mjs"
+      - ".github/workflows/teste-seguranca-publica.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    name: HTTP headers e XSS nao destrutivos
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Verificar sintaxe
+        run: |
+          node --check scripts/security-smoke-production.mjs
+          node --check scripts/security-browser-xss.mjs
+      - name: HTTP headers, XSS refletido no HTML e sinks estaticos
+        run: node scripts/security-smoke-production.mjs
+      - name: Preparar Chromium isolado (somente CI)
+        run: |
+          npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install chromium
+      - name: XSS refletido em navegador Chromium real
+        run: node scripts/security-browser-xss.mjs
