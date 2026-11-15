@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CATALOG_WINDOW_DAYS, publicCompanyName, publicationExclusionReason, isUnidentifiedCompany } from "./catalog-policy.mjs";
 import { refineCategory } from "./category-title-rules.mjs";
+import { validateSourceCoverage } from "./source-availability.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -246,8 +247,18 @@ async function main() {
   const excludedBySource = {};
   const missingFiles = [];
   const nowMs = Date.parse(nowIso);
+  const allowMissingInfojobs = process.env.RADAR_ALLOW_MISSING_INFOJOBS === "true";
 
   for (const [source, file] of INPUTS) {
+    if (source === "infojobs" && allowMissingInfojobs) {
+      // O coletor falhou (ex.: 403). Ignoramos integralmente seu JSON,
+      // mesmo que tenha sido gerado parcialmente, para não publicar dados incompletos.
+      sourceCounts[source] = 0;
+      eligibleSourceCounts[source] = 0;
+      excludedBySource[source] = {};
+      console.warn("InfoJobs indisponível: excluído desta carga, histórico preservado no banco.");
+      continue;
+    }
     try {
       const jobs = await readJson(file);
       sourceCounts[source] = jobs.length;
@@ -284,13 +295,9 @@ async function main() {
     throw new Error(`Fontes ausentes: ${missingFiles.join(", ")}. Merge bloqueado para proteger o catálogo.`);
   }
 
-  const emptySources = INPUTS.map(([source]) => source).filter(
-    (source) => (eligibleSourceCounts[source] ?? 0) === 0,
-  );
-  if (emptySources.length > 0) {
-    throw new Error(
-      `Fontes sem vagas elegíveis: ${emptySources.join(", ")}. Merge bloqueado para evitar desativação indevida.`,
-    );
+  const coverage = validateSourceCoverage(eligibleSourceCounts, { allowMissingInfojobs });
+  if (coverage.partial) {
+    console.warn("AVISO: catálogo parcial (sem InfoJobs). Nunca desativar vagas ausentes.");
   }
 
   console.log("------------------------------------");
@@ -521,6 +528,8 @@ async function main() {
 
   const report = {
     generated_at: nowIso,
+    partial: coverage.partial,
+    missing_sources: coverage.missing,
     inputs: sourceCounts,
     publication_window_days: CATALOG_WINDOW_DAYS,
     eligible_inputs: eligibleSourceCounts,
@@ -555,6 +564,7 @@ async function main() {
   console.log(`Duplicadas entre plataformas: ${duplicateGroups.length}`);
   console.log(`Inválidas após merge:         ${invalidJobs.length}`);
   console.log(`Vagas finais:                 ${publicJobs.length}`);
+  console.log(`Tipo de carga:                ${coverage.partial ? "PARCIAL (InfoJobs indisponível)" : "COMPLETA"}`);
   console.log("");
   console.log(`JSON final:   ${OUTPUT_FILE}`);
   console.log(`Relatório:    ${REPORT_FILE}`);
