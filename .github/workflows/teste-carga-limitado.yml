@@ -1,0 +1,30 @@
+name: Teste de carga limitado (Radar Vagas)
+
+on:
+  pull_request:
+    paths:
+      - "scripts/load-test-public.mjs"
+      - ".github/workflows/teste-carga-limitado.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: radar-load-test-limited
+  cancel-in-progress: true
+
+jobs:
+  teste-carga:
+    name: Carga segura (5, 10, 20, 30 conexões)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Verificar sintaxe do teste
+        run: node --check scripts/load-test-public.mjs
+      - name: Executar teste de carga com limites rígidos
+        run: node scripts/load-test-public.mjs
