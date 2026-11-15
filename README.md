@@ -157,7 +157,10 @@ node scripts/sync-supabase.mjs --apply
 - `--deactivate-absent` é uma decisão operacional separada, para desativar as vagas não observadas; exige também `RADAR_ALLOW_DESTRUCTIVE_SYNC=YES_I_HAVE_A_VERIFIED_BACKUP`.
 - `--purge-expired` exige `--deactivate-absent` e a confirmação ambiental acima, podendo excluir registros com mais de 15 dias. **Não utilizar sem backup e plano específico**.
 - Não há transação global para todos os lotes: falhas intermediárias podem deixar uma carga parcial.
-- O GitHub Actions agenda coletas para **08h e 18h de Brasília**, mas a execução agendada e a gravação estão **bloqueadas por padrão**. Somente habilitar a variável de repositório `RADAR_ENABLE_PRODUCTION_SYNC=true` após aprovação do fluxo automático e configuração dos secrets.
+- O GitHub Actions agenda sincronizações automáticas para **08h07 e 18h07 de Brasília** (11h07 e 21h07 UTC). Em execução agendada, coleta e publica as vagas válidas no Supabase via **upsert**, sem exclusão ou desativação em massa.
+- Em **Run workflow**, a opção `sync_production` inicia **marcada**: a execução manual também sincroniza, se todas as validações e credenciais forem aprovadas. Para diagnóstico sem gravação, desmarque a opção.
+- A atualização depende de `SUPABASE_URL` e `SUPABASE_SECRET_KEY` no GitHub Secrets, e do agendamento ativo em **Actions → Atualizar vagas**. Se o GitHub desativar o agendamento por inatividade, será necessário reabilitá-lo no GitHub.
+- O resumo da execução informa separadamente vagas coletadas e resultado da etapa de gravação. **Success na coleta não é prova de publicação**; confirme a etapa `Sincronizar Supabase` e `radar_status`.
 
 Guias: [auditoria de segurança e ações pendentes](docs/AUDITORIA_SEGURANCA_2026-11-14.md), [preparação de produção, backup e recuperação](docs/PREPARACAO_SUPABASE_PRODUCAO.md) e [histórico da recuperação](docs/RETOMADA_PIPELINE_2026-11.md).
 
