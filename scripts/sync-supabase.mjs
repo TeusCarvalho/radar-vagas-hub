@@ -4,6 +4,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { CATALOG_WINDOW_DAYS, publicationExclusionReason } from "./catalog-policy.mjs";
+import { EXPECTED_SOURCES, validateSourceCoverage } from "./source-availability.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,8 +13,6 @@ const PROJECT_ROOT = path.resolve(__dirname, "..");
 const INPUT_FILE = path.join(__dirname, "radar-jobs.json");
 const BATCH_SIZE = 400;
 const RETENTION_DAYS = 15;
-
-const EXPECTED_SOURCES = ["gupy", "inhire", "greenhouse", "lever", "ashby", "infojobs"];
 
 const STATUS_TABLE = "radar_status";
 const STATUS_ROW_ID = "main";
@@ -131,19 +130,13 @@ function countSources(jobs) {
   return counts;
 }
 
-function validateCatalog(jobs) {
+function validateCatalog(jobs, allowMissingInfojobs = false) {
   if (jobs.length === 0) {
     throw new Error("Catálogo vazio. Sincronização cancelada.");
   }
 
   const sourceCounts = countSources(jobs);
-  const missing = EXPECTED_SOURCES.filter((source) => sourceCounts[source] === 0);
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Fontes sem nenhuma vaga no JSON: ${missing.join(", ")}. Sincronização cancelada por segurança.`,
-    );
-  }
+  const coverage = validateSourceCoverage(sourceCounts, { allowMissingInfojobs });
 
   const nowMs = Date.now();
   const invalid = jobs
@@ -165,7 +158,7 @@ function validateCatalog(jobs) {
     );
   }
 
-  return sourceCounts;
+  return { sourceCounts, coverage };
 }
 
 function dbPayload(job, syncStartedAt) {
@@ -226,12 +219,13 @@ function chunks(array, size) {
 
 async function saveSyncStatus(
   supabase,
-  { syncStartedAt, syncFinishedAt, activeCount, catalogCount, sourceCounts, durationMs },
+  { syncStartedAt, syncFinishedAt, activeCount, catalogCount, sourceCounts, durationMs, partial },
 ) {
   const statusPayload = {
     id: STATUS_ROW_ID,
-    status: "success",
-    last_successful_sync: syncFinishedAt,
+    status: partial ? "partial" : "success",
+    // Não sobrescrever a data da última sincronização integral quando InfoJobs falhou.
+    ...(partial ? {} : { last_successful_sync: syncFinishedAt }),
     sync_started_at: syncStartedAt,
     total_jobs: activeCount,
     catalog_jobs: catalogCount,
@@ -256,8 +250,9 @@ async function main() {
   await loadProjectEnv();
 
   const apply = process.argv.includes("--apply");
+  const allowMissingInfojobs = process.env.RADAR_ALLOW_MISSING_INFOJOBS === "true";
   const jobs = await readJobs();
-  const sourceCounts = validateCatalog(jobs);
+  const { sourceCounts, coverage } = validateCatalog(jobs, allowMissingInfojobs);
 
   console.log("====================================");
   console.log("Radar Vagas - Sync Supabase");
@@ -265,6 +260,7 @@ async function main() {
   console.log(`Arquivo: ${INPUT_FILE}`);
   console.log(`Vagas: ${jobs.length}`);
   console.table(sourceCounts);
+  console.log(`Carga: ${coverage.partial ? "PARCIAL: InfoJobs omitido" : "INTEGRAL: seis fontes"}`);
 
   if (!apply) {
     console.log("");
@@ -277,6 +273,10 @@ async function main() {
 
   const destructiveRequested =
     process.argv.includes("--deactivate-absent") || process.argv.includes("--purge-expired");
+
+  if (coverage.partial && destructiveRequested) {
+    throw new Error("Carga parcial não permite --deactivate-absent nem --purge-expired.");
+  }
 
   // Segunda barreira: opções que desativam/excluem registros em massa
   // não podem ser ativadas apenas pelo argumento de linha de comando.
@@ -401,11 +401,12 @@ async function main() {
     catalogCount: jobs.length,
     sourceCounts,
     durationMs,
+    partial: coverage.partial,
   });
 
   console.log("");
   console.log("====================================");
-  console.log("SYNC CONCLUÍDO");
+  console.log(`SYNC CONCLUÍDO — ${coverage.partial ? "PARCIAL (InfoJobs pendente)" : "INTEGRAL"}`);
   console.log("====================================");
   console.log(`Upserts processados: ${processed}`);
   console.log(`Vagas ativas no Supabase: ${activeCount ?? "não informado"}`);
