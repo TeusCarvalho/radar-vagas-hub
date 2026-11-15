@@ -17,8 +17,8 @@ concurrency:
 jobs:
   deploy:
     name: Validar e publicar Worker existente
-    # Publicação pontual controlada deste commit; restaurar gate após concluir.
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.RADAR_ENABLE_GITHUB_DEPLOY == 'true' || (github.event_name == 'push' && github.event.head_commit.message == 'deploy-cloudflare-publicar-correcoes-aprovadas') }}
+    # Só um despacho manual ou um opt-in explícito habilita a publicação.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.RADAR_ENABLE_GITHUB_DEPLOY == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
